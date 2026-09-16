@@ -1,0 +1,11 @@
+[Unit]
+Description=hexis — reindex as soon as a note changes (complements the timer)
+
+[Path]
+# inotify on the notes folder -> triggers hexis-index.service on every write,
+# add or delete. The reindex is incremental, so this costs a few seconds.
+PathModified=%h/notes
+TriggerLimitIntervalSec=20s
+
+[Install]
+WantedBy=paths.target

@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.db
+.env
+# The generated index lives next to the notes it describes.
+examples/MEMORY.md

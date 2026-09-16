@@ -1,0 +1,9 @@
+[Unit]
+Description=hexis — daily memory health check
+
+[Timer]
+OnCalendar=*-*-* 08:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

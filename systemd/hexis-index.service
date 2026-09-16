@@ -1,0 +1,14 @@
+[Unit]
+Description=hexis — reindex the memory notes for semantic recall
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/hexis
+Environment=HEXIS_NOTES_DIR=%h/notes
+Environment=HEXIS_DB=%h/.local/share/hexis/memory.db
+# Environment=HEXIS_EMBED_BACKEND=http
+# Environment=HEXIS_EMBED_URL=http://gpu-host:8001
+ExecStart=%h/hexis/.venv/bin/python -m hexis.index
+# Do not fail the timer if a remote embedding backend is briefly unreachable.
+SuccessExitStatus=0 1

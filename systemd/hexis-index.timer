@@ -1,0 +1,9 @@
+[Unit]
+Description=hexis — daily full reindex (the .path unit covers live edits)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

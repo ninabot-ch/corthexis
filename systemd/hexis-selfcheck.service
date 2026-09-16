@@ -1,0 +1,11 @@
+[Unit]
+Description=hexis — verify the memory is present and healthy
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/hexis
+Environment=HEXIS_NOTES_DIR=%h/notes
+Environment=HEXIS_DB=%h/.local/share/hexis/memory.db
+# Any shell command; the report arrives on stdin.
+# Environment=HEXIS_ALERT_CMD=curl -sf -X POST "$SLACK_WEBHOOK" --data-binary @-
+ExecStart=%h/hexis/.venv/bin/python -m hexis.selfcheck --alert
