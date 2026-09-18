@@ -20,9 +20,9 @@ note quietly degrades while its index line goes blank.
 Nothing errors. The note is still there, still indexed, just much harder to find.
 
 **How to apply:** quote any description containing `:`, `#`, or a leading `-`.
-`hexis.index` does fall back to a line-by-line parser when YAML refuses the
+`corthexis.index` does fall back to a line-by-line parser when YAML refuses the
 block, and warns on stderr, but do not rely on the fallback — it is a net, not a
 floor.
 
-`python -m hexis.selfcheck` flags notes with an empty description for this exact
+`python -m corthexis.selfcheck` flags notes with an empty description for this exact
 reason.

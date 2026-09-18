@@ -1,5 +1,5 @@
 [Unit]
-Description=hexis — daily memory health check
+Description=corthexis — daily memory health check
 
 [Timer]
 OnCalendar=*-*-* 08:15:00

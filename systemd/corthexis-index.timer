@@ -1,5 +1,5 @@
 [Unit]
-Description=hexis — daily full reindex (the .path unit covers live edits)
+Description=corthexis — daily full reindex (the .path unit covers live edits)
 
 [Timer]
 OnCalendar=*-*-* 03:30:00

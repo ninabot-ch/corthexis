@@ -1,0 +1,11 @@
+[Unit]
+Description=corthexis — verify the memory is present and healthy
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/corthexis
+Environment=CORTHEXIS_NOTES_DIR=%h/notes
+Environment=CORTHEXIS_DB=%h/.local/share/corthexis/memory.db
+# Any shell command; the report arrives on stdin.
+# Environment=CORTHEXIS_ALERT_CMD=curl -sf -X POST "$SLACK_WEBHOOK" --data-binary @-
+ExecStart=%h/corthexis/.venv/bin/python -m corthexis.selfcheck --alert

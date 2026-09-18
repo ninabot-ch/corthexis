@@ -19,7 +19,7 @@ memory instantly reads as having been updated this second.
 `metadata.modified: YYYY-MM-DD`, and update it when the *content* changes — not
 when the file is touched. Search results then report a real age.
 
-Two guards are worth having, and `hexis.selfcheck` implements both:
+Two guards are worth having, and `corthexis.selfcheck` implements both:
 
 - notes with no resolvable date at all, past a small tolerance for pure
   reference material;

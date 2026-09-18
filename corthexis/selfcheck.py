@@ -26,13 +26,13 @@ So: verify, never assume.
 
 Exit 0 = healthy (and silent). Otherwise: a report on stdout and exit 1.
 
-    python -m hexis.selfcheck
-    python -m hexis.selfcheck --alert    # also run $HEXIS_ALERT_CMD
+    python -m corthexis.selfcheck
+    python -m corthexis.selfcheck --alert    # also run $CORTHEXIS_ALERT_CMD
 
-``HEXIS_ALERT_CMD`` is any shell command; the report is passed on stdin. That
+``CORTHEXIS_ALERT_CMD`` is any shell command; the report is passed on stdin. That
 keeps credentials for your chat/paging system out of this repo:
 
-    export HEXIS_ALERT_CMD='curl -sf -X POST "$SLACK_WEBHOOK" --data-binary @-'
+    export CORTHEXIS_ALERT_CMD='curl -sf -X POST "$SLACK_WEBHOOK" --data-binary @-'
 """
 from __future__ import annotations
 
@@ -45,24 +45,24 @@ import sqlite3
 import subprocess
 import sys
 
-NOTES_DIR = pathlib.Path(os.environ.get("HEXIS_NOTES_DIR", "./notes")).expanduser()
+NOTES_DIR = pathlib.Path(os.environ.get("CORTHEXIS_NOTES_DIR", "./notes")).expanduser()
 DB_PATH = pathlib.Path(
-    os.environ.get("HEXIS_DB", "~/.local/share/hexis/memory.db")
+    os.environ.get("CORTHEXIS_DB", "~/.local/share/corthexis/memory.db")
 ).expanduser()
 USER_CONF = pathlib.Path(
-    os.environ.get("HEXIS_USER_MCP_CONFIG", "~/.claude.json")
+    os.environ.get("CORTHEXIS_USER_MCP_CONFIG", "~/.claude.json")
 ).expanduser()
 PROJECT_CONF = pathlib.Path(
-    os.environ.get("HEXIS_PROJECT_MCP_CONFIG", "./.mcp.json")
+    os.environ.get("CORTHEXIS_PROJECT_MCP_CONFIG", "./.mcp.json")
 ).expanduser()
-SERVER = os.environ.get("HEXIS_MCP_SERVER_NAME", "hexis")
-ALERT_CMD = os.environ.get("HEXIS_ALERT_CMD", "")
+SERVER = os.environ.get("CORTHEXIS_MCP_SERVER_NAME", "corthexis")
+ALERT_CMD = os.environ.get("CORTHEXIS_ALERT_CMD", "")
 
 # The harness loads the whole index into every session and truncates past these.
-MAX_LINES = int(os.environ.get("HEXIS_INDEX_MAX_LINES", "190"))
-MAX_BYTES = int(os.environ.get("HEXIS_INDEX_MAX_BYTES", "24000"))
+MAX_LINES = int(os.environ.get("CORTHEXIS_INDEX_MAX_LINES", "190"))
+MAX_BYTES = int(os.environ.get("CORTHEXIS_INDEX_MAX_BYTES", "24000"))
 # Pure-reference notes legitimately carry no date. Past this, it is a regression.
-UNDATED_TOLERATED = int(os.environ.get("HEXIS_UNDATED_TOLERATED", "10"))
+UNDATED_TOLERATED = int(os.environ.get("CORTHEXIS_UNDATED_TOLERATED", "10"))
 
 
 def _note_name(path: pathlib.Path) -> str:
@@ -82,7 +82,7 @@ def _servers(path: pathlib.Path) -> dict:
 def _handshake(timeout: int = 60) -> str:
     """Start the server over stdio and ask for its tools. '' means healthy."""
     proc = subprocess.Popen(
-        [sys.executable, "-m", "hexis.server"],
+        [sys.executable, "-m", "corthexis.server"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         text=True, bufsize=1,
     )
@@ -90,7 +90,7 @@ def _handshake(timeout: int = 60) -> str:
     try:
         send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
               "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                         "clientInfo": {"name": "hexis-selfcheck", "version": "1"}}})
+                         "clientInfo": {"name": "corthexis-selfcheck", "version": "1"}}})
         send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
 
@@ -137,11 +137,11 @@ def check() -> list[str]:
 
     notes = [p for p in NOTES_DIR.glob("*.md") if p.name != "MEMORY.md"]
     if not notes:
-        problems.append(f"no notes found in {NOTES_DIR} (set HEXIS_NOTES_DIR)")
+        problems.append(f"no notes found in {NOTES_DIR} (set CORTHEXIS_NOTES_DIR)")
 
     index = NOTES_DIR / "MEMORY.md"
     if not index.exists():
-        problems.append(f"{index} missing — run `python -m hexis.index`")
+        problems.append(f"{index} missing — run `python -m corthexis.index`")
     else:
         raw = index.read_text(encoding="utf-8")
         n_lines, n_bytes = raw.count("\n"), len(raw.encode("utf-8"))
@@ -195,9 +195,9 @@ def check() -> list[str]:
 
 
 def alert(text: str) -> None:
-    """Pipe the report into $HEXIS_ALERT_CMD, if one is configured."""
+    """Pipe the report into $CORTHEXIS_ALERT_CMD, if one is configured."""
     if not ALERT_CMD:
-        print("--alert given but HEXIS_ALERT_CMD is not set", file=sys.stderr)
+        print("--alert given but CORTHEXIS_ALERT_CMD is not set", file=sys.stderr)
         return
     subprocess.run(ALERT_CMD, shell=True, input=text, text=True, check=False)
 
@@ -205,7 +205,7 @@ def alert(text: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--alert", action="store_true",
-                    help="pipe the report into $HEXIS_ALERT_CMD on failure")
+                    help="pipe the report into $CORTHEXIS_ALERT_CMD on failure")
     args = ap.parse_args()
 
     problems = check()

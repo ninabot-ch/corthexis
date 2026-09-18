@@ -1,24 +1,24 @@
 """Pluggable embedding backends.
 
 One function matters: :func:`embed`, which turns a list of strings into a list
-of unit-normalized vectors. Everything else in hexis treats embeddings as a
+of unit-normalized vectors. Everything else in corthexis treats embeddings as a
 black box, so swapping backends never touches the index or the server.
 
-Pick one with ``HEXIS_EMBED_BACKEND``:
+Pick one with ``CORTHEXIS_EMBED_BACKEND``:
 
 ``local`` (default)
     ``sentence-transformers`` in-process. No infrastructure, works offline after
     the first model download. This is the right choice for a single machine.
 
 ``http``
-    A service exposing ``POST {HEXIS_EMBED_URL}/api/v1/embed/text`` that accepts
+    A service exposing ``POST {CORTHEXIS_EMBED_URL}/api/v1/embed/text`` that accepts
     ``{"texts": [...]}`` and returns ``{"embeddings": [[...], ...]}``. Useful
     when the model lives on a GPU box separate from where notes are edited.
 
 ``openai``
-    Any OpenAI-compatible ``POST {HEXIS_EMBED_URL}/embeddings`` endpoint
+    Any OpenAI-compatible ``POST {CORTHEXIS_EMBED_URL}/embeddings`` endpoint
     (OpenAI itself, or a local server that speaks the same dialect).
-    Reads ``HEXIS_EMBED_API_KEY``.
+    Reads ``CORTHEXIS_EMBED_API_KEY``.
 
 The default model is multilingual on purpose: notes written in one language
 should be recalled by queries in another. If you change it, re-index with
@@ -30,11 +30,11 @@ import math
 import os
 from functools import lru_cache
 
-BACKEND = os.environ.get("HEXIS_EMBED_BACKEND", "local").strip().lower()
-MODEL = os.environ.get("HEXIS_EMBED_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
-URL = os.environ.get("HEXIS_EMBED_URL", "http://127.0.0.1:8001").rstrip("/")
-API_KEY = os.environ.get("HEXIS_EMBED_API_KEY", "")
-BATCH = int(os.environ.get("HEXIS_EMBED_BATCH", "64"))
+BACKEND = os.environ.get("CORTHEXIS_EMBED_BACKEND", "local").strip().lower()
+MODEL = os.environ.get("CORTHEXIS_EMBED_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
+URL = os.environ.get("CORTHEXIS_EMBED_URL", "http://127.0.0.1:8001").rstrip("/")
+API_KEY = os.environ.get("CORTHEXIS_EMBED_API_KEY", "")
+BATCH = int(os.environ.get("CORTHEXIS_EMBED_BATCH", "64"))
 
 
 class EmbeddingError(RuntimeError):
@@ -59,7 +59,7 @@ def _local_model():
     except ImportError as exc:  # pragma: no cover - depends on the extra
         raise EmbeddingError(
             "backend 'local' needs sentence-transformers: "
-            "pip install 'hexis[local]' (or set HEXIS_EMBED_BACKEND=http)"
+            "pip install 'corthexis[local]' (or set CORTHEXIS_EMBED_BACKEND=http)"
         ) from exc
     return SentenceTransformer(MODEL)
 
@@ -122,7 +122,7 @@ def embed(texts: list[str]) -> list[list[float]]:
         fn = _BACKENDS[BACKEND]
     except KeyError:
         raise EmbeddingError(
-            f"unknown HEXIS_EMBED_BACKEND={BACKEND!r}; "
+            f"unknown CORTHEXIS_EMBED_BACKEND={BACKEND!r}; "
             f"expected one of {', '.join(sorted(_BACKENDS))}"
         ) from None
     return fn(texts)

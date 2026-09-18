@@ -16,7 +16,7 @@ into context. If the embedding backend is unreachable the server degrades to
 lexical-only scoring and says so in the result, rather than silently returning
 worse answers.
 
-    python -m hexis.server
+    python -m corthexis.server
 """
 from __future__ import annotations
 
@@ -35,10 +35,10 @@ from .embeddings import describe as embed_describe
 from .embeddings import embed_one
 
 DB_PATH = Path(
-    os.environ.get("HEXIS_DB", "~/.local/share/hexis/memory.db")
+    os.environ.get("CORTHEXIS_DB", "~/.local/share/corthexis/memory.db")
 ).expanduser()
 
-mcp = _Server("hexis")
+mcp = _Server("corthexis")
 
 
 def _embed_query(text: str) -> list[float]:
@@ -127,7 +127,7 @@ def memory_search(query: str, top_k: int = 8) -> list[dict]:
     """
     chunks = _load_chunks()
     if not chunks:
-        return [{"error": "index empty or missing — run `python -m hexis.index`", "db": str(DB_PATH)}]
+        return [{"error": "index empty or missing — run `python -m corthexis.index`", "db": str(DB_PATH)}]
     qtok = _tokens(query)
     degraded = None
     try:

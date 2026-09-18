@@ -1,10 +1,10 @@
-# hexis
+# corthexis
 
 **Semantic memory for coding agents. Point it at a folder of notes; your agent
 recalls the right ones at the start of a task, in any language, without you
 loading an index into context.**
 
-A note is one markdown file holding one fact. `hexis` embeds them, keeps the
+A note is one markdown file holding one fact. `corthexis` embeds them, keeps the
 index in sync on a filesystem watch, serves recall over MCP, and — the part that
 turns out to matter most — **checks that the memory is still actually there**.
 
@@ -25,28 +25,28 @@ notes became invisible at session start. Both times the session booted
 normally. Both times the only symptom was an agent that seemed to have gotten
 worse.
 
-So `hexis` ships a `selfcheck` that verifies rather than assumes, and the
+So `corthexis` ships a `selfcheck` that verifies rather than assumes, and the
 failure modes it knows about are written down in `examples/` as notes, in the
 same format it indexes.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/ninabot-ch/hexis && cd hexis
+git clone https://github.com/ninabot-ch/corthexis && cd corthexis
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-export HEXIS_NOTES_DIR=./examples          # or your own notes folder
-export HEXIS_DB=~/.local/share/hexis/memory.db
+export CORTHEXIS_NOTES_DIR=./examples          # or your own notes folder
+export CORTHEXIS_DB=~/.local/share/corthexis/memory.db
 
-.venv/bin/python -m hexis.index            # embeds; first run downloads the model
+.venv/bin/python -m corthexis.index            # embeds; first run downloads the model
 ```
 
 Register the MCP server with your agent:
 
 ```bash
-claude mcp add -s user hexis $(pwd)/.venv/bin/python -m hexis.server \
-  -e HEXIS_NOTES_DIR=$(pwd)/examples \
-  -e HEXIS_DB=$HOME/.local/share/hexis/memory.db
+claude mcp add -s user corthexis $(pwd)/.venv/bin/python -m corthexis.server \
+  -e CORTHEXIS_NOTES_DIR=$(pwd)/examples \
+  -e CORTHEXIS_DB=$HOME/.local/share/corthexis/memory.db
 ```
 
 Then ask it something the notes cover, in whatever language you like — *« mon
@@ -57,7 +57,7 @@ Two tools are exposed: `memory_search(query, top_k)` returns ranked notes with a
 score and an excerpt; `memory_get(name)` returns one note in full.
 
 To point it at [Claude Code](https://claude.com/claude-code)'s own memory
-directory, set `HEXIS_NOTES_DIR` to
+directory, set `CORTHEXIS_NOTES_DIR` to
 `~/.claude/projects/<project-slug>/memory`.
 
 ## Keeping it in sync
@@ -67,7 +67,7 @@ any note changing (inotify, incremental), and a `.timer` does a full pass
 nightly. A second timer runs the health check:
 
 ```bash
-.venv/bin/python -m hexis.selfcheck
+.venv/bin/python -m corthexis.selfcheck
 ```
 
 It verifies the MCP server is declared in *user* scope (otherwise sessions
@@ -77,20 +77,20 @@ budget in both lines and bytes, that every note on disk appears in it, and that
 no note has lost its description to a broken frontmatter block.
 
 Exit 0 and silent when healthy. With `--alert`, the report is piped into
-`$HEXIS_ALERT_CMD` — any shell command, so your paging credentials stay out of
+`$CORTHEXIS_ALERT_CMD` — any shell command, so your paging credentials stay out of
 this repo.
 
 ## Embedding backends
 
-Set `HEXIS_EMBED_BACKEND`:
+Set `CORTHEXIS_EMBED_BACKEND`:
 
 | | |
 |---|---|
 | `local` (default) | `sentence-transformers` in-process. No infrastructure, offline after first download. |
-| `http` | `POST {HEXIS_EMBED_URL}/api/v1/embed/text` — for when the model lives on a GPU box. |
-| `openai` | Any OpenAI-compatible `/embeddings` endpoint. Reads `HEXIS_EMBED_API_KEY`. |
+| `http` | `POST {CORTHEXIS_EMBED_URL}/api/v1/embed/text` — for when the model lives on a GPU box. |
+| `openai` | Any OpenAI-compatible `/embeddings` endpoint. Reads `CORTHEXIS_EMBED_API_KEY`. |
 
-The default model is multilingual on purpose. Changing `HEXIS_EMBED_MODEL` means
+The default model is multilingual on purpose. Changing `CORTHEXIS_EMBED_MODEL` means
 re-running with `--rebuild`: vectors from two models are not comparable.
 
 ## The note format
@@ -123,4 +123,4 @@ is not our notes — it is what happens when you run it against yours.
 ---
 
 Built by [Ninabot Sàrl](https://ninabot.ch), Geneva.
-The method around it: **[runhexis.com](https://runhexis.com)**.
+The method around it: **[corthexis.com](https://corthexis.com)**.

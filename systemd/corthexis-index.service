@@ -1,0 +1,14 @@
+[Unit]
+Description=corthexis — reindex the memory notes for semantic recall
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/corthexis
+Environment=CORTHEXIS_NOTES_DIR=%h/notes
+Environment=CORTHEXIS_DB=%h/.local/share/corthexis/memory.db
+# Environment=CORTHEXIS_EMBED_BACKEND=http
+# Environment=CORTHEXIS_EMBED_URL=http://gpu-host:8001
+ExecStart=%h/corthexis/.venv/bin/python -m corthexis.index
+# Do not fail the timer if a remote embedding backend is briefly unreachable.
+SuccessExitStatus=0 1
