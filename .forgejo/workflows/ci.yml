@@ -1,0 +1,22 @@
+# CI légère Ninabot — standard des dépôts sans service à déployer (docs/infra/cicd-plan.md de ninabot-pro, §P7).
+# push/PR → marqueurs de conflit, Python compilé, shell `bash -n`, YAML/JSON valides. Runner rog1 (label python).
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  lint:
+    runs-on: python   # Python 3.12 complet, sans node : clone à la main (même montage que maic)
+    steps:
+      - name: Clone
+        run: |
+          git clone -q --depth 20 --branch "${{ github.head_ref || github.ref_name }}" "http://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@100.124.110.23:3003/${{ github.repository }}.git" . && git checkout -q "${{ github.sha }}"
+          git log -1 --format='%h %s' | cut -c1-90
+      - name: Lint
+        run: |
+          ! git grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- . ':!*.md' || { echo 'marqueurs de conflit git'; exit 1; }
+          python3 -m pip install -q --disable-pip-version-check pyyaml >/dev/null
+          n=$(git ls-files '*.py' | wc -l); [ "$n" = 0 ] || { git ls-files -z '*.py' | xargs -0 python3 -m py_compile && echo "python : $n fichier(s) ok"; }
+          n=$(git ls-files '*.sh' | wc -l); [ "$n" = 0 ] || { git ls-files -z '*.sh' | xargs -0 -n1 bash -n && echo "shell : $n fichier(s) ok"; }
+          git ls-files -z '*.yml' '*.yaml' | xargs -0 -r python3 -c 'import sys,yaml; [list(yaml.safe_load_all(open(f))) for f in sys.argv[1:]]; print("yaml :", len(sys.argv)-1, "fichier(s) ok")'
+          git ls-files -z '*.json' | xargs -0 -r python3 -c 'import sys,json; [json.load(open(f)) for f in sys.argv[1:]]; print("json :", len(sys.argv)-1, "fichier(s) ok")'
