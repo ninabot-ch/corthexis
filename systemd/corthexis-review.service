@@ -1,0 +1,13 @@
+# Outside watcher (optional): the review run from the SESSIONS' side — checks that the
+# memory server is declared in the agent's configuration and answers when started the way
+# a session starts it, which a container cannot see. Exit 1 on a critical finding.
+#   CORTHEXIS_REVIEW_MCP_CONFIGS=~/.claude.json  CORTHEXIS_REVIEW_MCP_SERVER=corthexis
+#   CORTHEXIS_REVIEW_EXPECT_HOOK=1  CORTHEXIS_REVIEW_HOOK_SETTINGS=~/.claude/settings.json
+#   CORTHEXIS_REVIEW_HOOK_PATTERN=corthexis
+[Unit]
+Description=CortHeXis — review the memory chain as a session sees it
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/corthexis/corthexis.env
+ExecStart=/bin/sh -c '%h/.local/bin/corthexis review --chain > %h/.local/share/corthexis/review-chain.json'

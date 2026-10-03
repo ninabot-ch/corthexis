@@ -23,14 +23,51 @@ Link related notes with [[their-name]].
 
 | Field | Required | What it does |
 |---|---|---|
-| `name` | yes | The recall handle. Kebab-case. Defaults to the filename stem. |
+| `name` | yes | The recall handle. Kebab-case (`http-202-is-not-success`). Defaults to the file name. |
 | `description` | yes | One line. See below — this is the highest-leverage field in the file. |
 | `metadata.type` | yes | `user` · `feedback` · `project` · `reference` |
 | `metadata.modified` | recommended | `YYYY-MM-DD`, the real last-updated date. See [[dates-live-in-the-frontmatter]]. |
+| `priority` | no | `high`: a slight boost in search (opt-in, `CORTHEXIS_PRIORITY_BOOST`). |
+
+## File name
+
+The file of a note named `http-202-is-not-success` is `http_202_is_not_success.md`: the
+name with `_` instead of `-`. One convention, so that an agent writing a note always lands
+on the same file instead of creating a twin. The indexer brings the folder back to it on
+its own (`CORTHEXIS_NORMALIZE`, on by default): a file renamed to its name (and the links
+to it rewritten), a header-less file appended to the note it belongs to, a broken YAML block
+rewritten, a missing type filled in, a dangling link re-attached when it designates one note
+unambiguously — every change lossless. A file touched less than five minutes ago is never
+renamed nor merged: a note being written is not moved under the writer's feet. `corthexis normalize --dry-run` shows the plan.
+`MEMORY.md` is the generated index (one line per note, within the budget a session loads):
+never edit it by hand.
+
+## Links
+
+`[[another-note]]` links two notes (by name; the file name and `_`/`-` variants resolve
+too). Links inside code are ignored. The review reports links to notes that do not exist,
+suggests the note a renamed link meant, and proposes the fix; the dashboard draws the
+links as the graph.
+
+## Dates and where they come from
+
+Every search result carries the note's age **and the provenance of that date**, because
+an agent must not read a two-month-old fact as today's:
+
+| Source | Meaning |
+|---|---|
+| `frontmatter` | `metadata.modified`, written on purpose |
+| `indexed` | measured: the first time the indexer saw this content (the header was not bumped) |
+| `transcript` | reconstructed from session transcripts — a real write, day exact |
+| `migrated-mtime` | the file date imported once from a 1.x / SQLite install — an approximation |
+| `inferred` | deduced from the body — an order of magnitude, never a measure |
+
+The date is **link-insensitive**: rewriting `[[links]]` (a rename, a repair) does not
+make a note young again.
 
 ⚠️ **Quote any `description` containing a colon.** An unquoted colon breaks the
 whole YAML block and the note silently loses its name *and* its description.
-See `examples/frontmatter-colon-breaks-recall.md`.
+See `examples/agent-memory/frontmatter_colon_breaks_recall.md`.
 
 ## Why `description` carries the weight
 
@@ -57,7 +94,7 @@ circumstances shift. These are pinned to the top of the index.
 code or the git history. Convert relative dates to absolute ones when writing.
 
 **`reference`** — pointers to external resources, and durable technical facts
-like the ones in `examples/`.
+like the ones in `examples/agent-memory/`.
 
 ## What not to write down
 

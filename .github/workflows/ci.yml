@@ -1,0 +1,48 @@
+# CortHeXis — CI on the public mirror: the whole test suite against a real Postgres + pgvector,
+# then the standalone install end to end (compose up, example corpus indexed, MCP search).
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: cx
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cx" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      CORTHEXIS_TEST_PG_DSN: postgresql://cx:test@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -e ".[dev]"
+      - run: ruff check corthexis tests
+      - run: pytest -q
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup (MIT model, unattended)
+        run: CORTHEXIS_ACCEPT_GEMMA_TERMS=0 ./setup.sh examples/agent-memory
+      - run: docker compose up -d
+      - name: index the example corpus
+        run: |
+          timeout 600 sh -c 'until docker compose exec -T corthexis corthexis status | grep -q "index          generation"; do sleep 5; done'
+          docker compose exec -T corthexis corthexis status
+      - name: search over MCP (HTTP, Bearer)
+        run: |
+          TOKEN=$(sed -n 's/^CORTHEXIS_TOKEN=//p' .env)
+          pip install -q "mcp>=1.12,<2"
+          python3 scripts/mcp_smoke.py http://127.0.0.1:8420/mcp "$TOKEN" "my agent got HTTP 202, is it done?" http-202-is-not-success
+      - if: failure()
+        run: docker compose logs --tail 200

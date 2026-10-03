@@ -1,0 +1,13 @@
+CortHeXis
+Copyright 2026 Ninabot Sàrl
+
+This product includes software developed by third parties, shipped unmodified in
+corthexis/dashboard/static/vendor/:
+
+  d3 v7.9.0 — https://d3js.org — Copyright 2010-2023 Mike Bostock — ISC License
+  marked v15.0.12 — https://github.com/markedjs/marked — Copyright (c) 2011-2025,
+    Christopher Jeffrey — MIT License
+
+No model weights are distributed with this software. The embedding and reranking models
+are downloaded at first run under their own terms; in particular EmbeddingGemma-300m is
+provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms.

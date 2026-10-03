@@ -108,6 +108,8 @@ def http_app(allowed_hosts: list[str] | None = None):
             allowed_origins=[f"https://{h}" for h in hosts] + [f"http://{h}" for h in hosts])
     except ImportError:  # pragma: no cover — older mcp: no DNS-rebinding settings
         pass
+    if hasattr(mcp, "_session_manager"):
+        mcp._session_manager = None      # a fresh manager per app (it runs once per instance)
     return mcp.streamable_http_app()
 
 

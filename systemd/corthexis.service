@@ -1,0 +1,19 @@
+# CortHeXis without Docker — user unit (systemctl --user). The process indexes on file
+# changes, reviews every hour, serves the dashboard and MCP over HTTP.
+#   pip install --user "git+https://github.com/ninabot-ch/corthexis"   (or a venv)
+#   mkdir -p ~/.config/corthexis && cp .env.example ~/.config/corthexis/corthexis.env  # edit it
+#   cp systemd/corthexis.service ~/.config/systemd/user/ && systemctl --user enable --now corthexis
+# Needs a Postgres with pgvector (CORTHEXIS_DATABASE_URL) and an embedding server
+# (CORTHEXIS_EMBED_URLS, e.g. docker/embed/run.sh with a native llama-server).
+[Unit]
+Description=CortHeXis memory (indexer, review, dashboard, MCP)
+After=network-online.target
+
+[Service]
+EnvironmentFile=%h/.config/corthexis/corthexis.env
+ExecStart=%h/.local/bin/corthexis serve --host 127.0.0.1 --port 8420
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

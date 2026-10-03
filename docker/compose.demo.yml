@@ -1,0 +1,15 @@
+# Public, read-only showcase (what runs demo.corthexis.com). With the root compose:
+#   docker compose -f docker-compose.yml -f docker/compose.demo.yml up -d
+# The notes are mounted read-only and nothing is ever written to them; the dashboard is
+# readable without the token, every write answers 403, MCP is off. See docs/DEMO.md.
+services:
+  corthexis:
+    environment:
+      CORTHEXIS_DEMO: "1"
+      CORTHEXIS_NORMALIZE: "false"
+      CORTHEXIS_WRITE_INDEX: "false"
+      CORTHEXIS_REVIEW_UNDATED_TOLERATED: "0"
+      CORTHEXIS_DEMO_BANNER: ${CORTHEXIS_DEMO_BANNER:-}
+      CORTHEXIS_REDIRECT_HOSTS: ${CORTHEXIS_REDIRECT_HOSTS:-}
+    volumes:
+      - ${CORTHEXIS_NOTES:-./examples/mirabeau-conseil}:/notes:ro

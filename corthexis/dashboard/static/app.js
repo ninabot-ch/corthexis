@@ -351,6 +351,7 @@
     if (!canWrite()) return "";
     const b = (label, p) => `<button class="btn mini" data-propose='${esc(JSON.stringify(p))}'>${label}</button>`;
     if (f.action === "relink" && it.suggestion) return b(t("act_relink", { to: esc(it.suggestion) }), { kind: "relink", target: String(it.target), new_target: String(it.suggestion), note: String(it.note || "") });
+    if (f.action === "relink" && it.target) return b(t("act_relink_ask"), { kind: "relink", target: String(it.target), new_target: "", note: String(it.note || ""), ask: "new_target" });
     if (f.action === "merge" && it.other) return b(t("act_merge"), { kind: "merge", keep: String(it.note), drop: String(it.other) });
     if (f.action === "rename") return b(t("act_rename", { to: esc(it.name || "") }), { kind: "rename", note: String(it.note), new_name: String(it.name || "") });
     if (f.action === "close") return b(t("act_close"), { kind: "close", note: String(it.note) });
@@ -403,7 +404,16 @@
   }
   panel.addEventListener("click", async e => {
     const p = e.target.closest("[data-propose]");
-    if (p) { e.preventDefault(); propose(JSON.parse(p.dataset.propose), p); return; }
+    if (p) {
+      e.preventDefault();
+      const body = JSON.parse(p.dataset.propose);
+      if (body.ask) {
+        const v = prompt(t("ask_" + body.ask, { target: body.target || "" }));
+        if (!v || !v.trim()) return;
+        body[body.ask] = v.trim(); delete body.ask;
+      }
+      propose(body, p); return;
+    }
     const a = e.target.closest("[data-note]");
     if (a) { e.preventDefault(); openNote(a.dataset.note); }
   });

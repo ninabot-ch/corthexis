@@ -476,3 +476,26 @@ def test_real_corpus_false_positive_patterns(tmp_path):
     body = ("Config: `/srv/x/.docs/docs/a.json`. Decisions `docs/decisions/0001…0011`. "
             "`docs/old` + `docs/older` retirés (supprimé, commit abc). Missing: docs/gone.md.")
     assert find_dead_paths(body, [repo], ("docs",)) == ["docs/gone.md"]
+
+
+def test_mass_rewrite_ignores_notes_with_declared_dates(tmp_path):
+    """A git clone or a backup restore gives every file one mtime: harmless when the notes
+    carry metadata.modified; a warning only for notes dated by their file."""
+    import os
+
+    from corthexis.review import ReviewConfig, run_review
+
+    for i in range(25):
+        p = tmp_path / f"note_{i}.md"
+        p.write_text(f"---\nname: note-{i}\ndescription: fact {i}\nmetadata:\n  type: reference\n"
+                     f"  modified: 2026-09-{(i % 28) + 1:02d}\n---\nbody {i}\n", encoding="utf-8")
+        os.utime(p, (1_700_000_000, 1_700_000_000))
+    ids = {f["id"] for f in run_review(ReviewConfig(memory_dir=tmp_path))["findings"]}
+    assert "mass_rewrite" not in ids
+    for i in range(25):
+        p = tmp_path / f"note_{i}.md"
+        p.write_text(f"---\nname: note-{i}\ndescription: fact {i}\nmetadata:\n  type: reference\n"
+                     f"---\nbody {i}\n", encoding="utf-8")
+        os.utime(p, (1_700_000_000, 1_700_000_000))
+    ids = {f["id"] for f in run_review(ReviewConfig(memory_dir=tmp_path))["findings"]}
+    assert "mass_rewrite" in ids

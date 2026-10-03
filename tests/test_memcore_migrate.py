@@ -303,3 +303,64 @@ def test_migration_into_the_postgres_store(tmp_path):
         store.close()
         with psycopg.connect(PG_DSN, autocommit=True) as con:
             con.execute(f"DROP DATABASE {name} WITH (FORCE)")
+
+
+def corthexis1_db(path, mem_dir):
+    """A CortHeXis 1.x memory.db, exactly the schema of its corthexis/index.py (no
+    priority column, a note_seen table, MiniLM vectors as JSON)."""
+    con = sqlite3.connect(path)
+    con.executescript(
+        "CREATE TABLE notes (name TEXT PRIMARY KEY, description TEXT, type TEXT, mtime REAL,"
+        " source_path TEXT, modified TEXT, modified_source TEXT);"
+        "CREATE TABLE chunks (id INTEGER PRIMARY KEY AUTOINCREMENT, note_name TEXT NOT NULL"
+        " REFERENCES notes(name) ON DELETE CASCADE, chunk_idx INTEGER NOT NULL,"
+        " body TEXT NOT NULL, embedding TEXT NOT NULL);"
+        "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);"
+        "CREATE TABLE note_seen (name TEXT PRIMARY KEY, content_hash TEXT NOT NULL,"
+        " first_seen TEXT NOT NULL, seeded INTEGER NOT NULL DEFAULT 0);")
+    for p in sorted(mem_dir.glob("*.md")):
+        note = parse_note(p.read_text(encoding="utf-8"), p.name)
+        con.execute("INSERT INTO notes VALUES (?,?,?,?,?,?,?)",
+                    (note.name, note.description, note.type, p.stat().st_mtime, str(p),
+                     note.modified, "frontmatter" if note.modified else None))
+        con.execute("INSERT INTO chunks(note_name, chunk_idx, body, embedding) "
+                    "VALUES (?,0,?,'[0.1, 0.2]')", (note.name, note.body))
+    con.execute("INSERT INTO meta VALUES ('model', 'local:paraphrase-multilingual-MiniLM-L12-v2')")
+    con.commit()
+    con.close()
+
+
+def test_migration_from_corthexis_1(tmp_path):
+    """1.x installs: kebab file names, declared dates, a SQLite index — every note comes
+    over with its date, the files take the naming convention, the index is not touched."""
+    mem, work = tmp_path / "notes", tmp_path / "work"
+    mem.mkdir()
+    for i, (name, day) in enumerate([("http-202-is-not-success", "2026-09-16"),
+                                     ("one-chrome-per-profile", "2026-09-10"),
+                                     ("a-correction-becomes-a-rule", None)]):
+        p = mem / f"{name}.md"
+        meta = f"  modified: {day}\n" if day else ""
+        p.write_text(f"---\nname: {name}\ndescription: fact {i}\nmetadata:\n  type: reference\n"
+                     f"{meta}---\nbody of {name}, see [[http-202-is-not-success]]\n",
+                     encoding="utf-8")
+        ts = (T0 - D(days=30 + i)).timestamp()
+        os.utime(p, (ts, ts))
+    db = tmp_path / "memory.db"
+    corthexis1_db(db, mem)
+    db_before = db.read_bytes()
+    assert migrate.legacy_index(db)["model"] == "local:paraphrase-multilingual-MiniLM-L12-v2"
+    store = InMemoryStore()
+    st = migrate.Migration(mem, work, store, FakeEmbedder(), legacy_db=db, grace=0,
+                           clock=Clock(), log=lambda m: None).run()
+    assert st["status"] == "done", st["message"]
+    assert sorted(p.name for p in mem.glob("*.md") if p.name != "MEMORY.md") == [
+        "a_correction_becomes_a_rule.md", "http_202_is_not_success.md",
+        "one_chrome_per_profile.md"]
+    assert store.note_names(store.active_generation().id) == {
+        "http-202-is-not-success", "one-chrome-per-profile", "a-correction-becomes-a-rule"}
+    assert parse_dt(store.get_note("http-202-is-not-success").modified).date().isoformat() \
+        == "2026-09-16"
+    # the undated note keeps the 1.x file date, flagged as an approximation
+    undated = store.get_note("a-correction-becomes-a-rule")
+    assert undated.modified_source == "migrated-mtime"
+    assert db.read_bytes() == db_before
