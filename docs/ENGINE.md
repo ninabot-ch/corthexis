@@ -1,25 +1,26 @@
-# memory-core — the CortHeXis memory engine (SOKKAN 3.0)
+# The CortHeXis engine
 
-Self-contained package (no import from the SOKKAN backend or Magnitude),
-configured with `CORTHEXIS_*` variables — the `SOKKAN_*` names and
-`ML_SERVICE_URL` of SOKKAN are read as a fallback. It will move to the public
-`ninabot-ch/corthexis` repository; SOKKAN depends on it.
+The package `corthexis` is self-contained and configured with `CORTHEXIS_*` variables —
+the `SOKKAN_*` names and `ML_SERVICE_URL` of SOKKAN are read as a fallback. SOKKAN 3.0
+depends on it. The service around the engine (`service.py`, `server.py`, `hook.py`,
+`notify.py`, `dashboard/`, `cli.py`) is described in the README; this page covers the
+engine modules.
 
 | File | Role | Dependencies |
 |---|---|---|
 | `embed.py` | embedding client: `identity()`, `embed_docs()`, `embed_query()`, `rerank()` | httpx (fastembed for the legacy profile) |
 | `models.py` | model registry, Gemma licence gate, first-run download + SHA-256 | stdlib |
-| `recall.py` | recall at every message (`UserPromptSubmit`) and for sub-agents (`PreToolUse` Task/Agent): selection, dedup, logging, command-hook entry `python -m core.recall` | store, embed |
+| `recall.py` | recall at every message (`UserPromptSubmit`) and for sub-agents (`PreToolUse` Task/Agent): selection, dedup, logging, command-hook entry `python -m corthexis.recall` | store, embed |
 | `bench_recall.py` | "ignored facts" bench of the recall (fictional corpus, no model call) | store, embed, indexer |
 | `profiles.py` | profiles `leger / standard / gpu`, costs, hardware detection and recommendation | stdlib |
 | `eval.py` | recall bench on the client's own notes: questions (transcripts, written, generated), runs, comparison, regression findings, nightly | psycopg (store) |
 | `switch.py` | profile / model change gated by the bench: background build, atomic switch, approve / cancel, 7-day rollback | store, embed, indexer |
-| `review.py` | the memory reads itself back: health score and history, findings with their remedy, chain checks, alert policy (`python -m core.review`) | store (optional), numpy |
+| `review.py` | the memory reads itself back: health score and history, findings with their remedy, chain checks, alert policy (`corthexis review`) | store (optional), numpy |
 | `repair.py` | one-click repairs as proposals with a diff (relink, merge, rename, close), applied all-or-nothing | stdlib |
 
 ## Profiles
 
-`python3 memory/core/profiles.py` (or, in SOKKAN, `python3 -m magnitude --memory-profile`)
+`corthexis profile` (or, in SOKKAN, `python3 -m magnitude --memory-profile`)
 recommends a profile from cores, RAM and GPU. Figures: memory bench of 03.10.2026
 (300 questions fr/en/de, hybrid search; GPU pass on an Intel Arc Pro B60).
 
@@ -49,7 +50,7 @@ Metrics as in the reference bench: hit@1, hit@5, MRR, nDCG@10, weighted, per sou
 index generation; every run and per-question rank is stored. `check_regression` compares a
 run with the previous one of the same generation and profile on their shared questions (MRR
 drop > `CORTHEXIS_EVAL_MAX_DROP`, default 0.02, on ≥ 5 questions) and `findings()` turns it
-into a review finding. `python -m core.eval run | harvest | add | list | report | compare`.
+into a review finding. `corthexis eval run | harvest | add | list | report | compare`.
 
 `switch.py` changes profile, model or servers as a job: a target that embeds with another
 model builds a new generation in the background (the indexer, `auto_activate=False`) while
