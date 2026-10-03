@@ -14,7 +14,7 @@ Two rules keep mechanical rewrites from making the corpus look fresh:
   seen under another name (rename), and normalize can declare *hash aliases*
   (old body hash → new body hash) for the files it rewrote itself.
 
-Each date carries its provenance (``core.contract.DATE_SOURCES``).
+Each date carries its provenance (``corthexis.contract.DATE_SOURCES``).
 """
 from __future__ import annotations
 

@@ -11,7 +11,7 @@ longer declared in the sessions' configuration.
 The engine only **reads**: notes (the markdown files are the source of truth), the
 index (a ``ReviewSource``: the Postgres store, the 2.x SQLite file or the in-memory
 reference store) and the session configuration for the chain checks. It names the
-note and the remedy; repairs are proposed by ``core.repair`` and applied by the
+note and the remedy; repairs are proposed by ``corthexis.repair`` and applied by the
 caller after approval. The only thing it writes is its own history
 (``PgHistory`` / ``SqliteHistory``).
 
@@ -131,7 +131,7 @@ class Finding:
     # one row per problem, the material of the one-click actions:
     #   {"note": ..., ...check-specific keys...}
     items: list[dict] = field(default_factory=list)
-    action: str | None = None   # relink | merge | rename | close (core.repair)
+    action: str | None = None   # relink | merge | rename | close (corthexis.repair)
     judgement: bool = False     # a human (or a curation session) has to decide
 
 
@@ -301,7 +301,7 @@ def _mean(vectors: list[list[float]]) -> list[float]:
 
 
 class MemorySource:
-    """``core.memstore.InMemoryStore`` (tests, executable spec)."""
+    """``corthexis.memstore.InMemoryStore`` (tests, executable spec)."""
     label = "in-memory store"
 
     def __init__(self, store):
@@ -401,7 +401,7 @@ class SqliteSource:
 
 
 class PgSource:
-    """``core.store.Store`` (Postgres + pgvector). Near duplicates = k nearest chunks of
+    """``corthexis.store.Store`` (Postgres + pgvector). Near duplicates = k nearest chunks of
     each note's centroid through the generation's HNSW index (exact scan below the
     store's ``exact_max_chunks``), then the exact centroid cosine of those candidate
     pairs: O(n·k) instead of O(n²)."""
@@ -700,7 +700,7 @@ def _norm_ws(s: str | None) -> str:
 
 
 def external_findings(rows: list[dict], category: str = "recall") -> list[Finding]:
-    """Findings produced elsewhere (``core.eval.findings``: ``check``, ``severity`` critical |
+    """Findings produced elsewhere (``corthexis.eval.findings``: ``check``, ``severity`` critical |
     warning | info, ``title``, ``detail``, ``remedy``, ``notes``) in the review's format, so
     they count in the score and the alerts like the others."""
     sev = {"critical": "crit", "crit": "crit", "warning": "warn", "warn": "warn"}
@@ -1322,7 +1322,7 @@ def format_digest(report: dict, link: str = "", kind: str = "digest") -> tuple[s
 
 
 def main(argv: list[str] | None = None) -> int:
-    """``python -m core.review [--chain]``: review the configured memory, JSON on stdout,
+    """``corthexis review [--chain]``: review the configured memory, JSON on stdout,
     exit 1 when there is a critical finding. Run it in the sessions' context."""
     import argparse
     import sys

@@ -1,7 +1,7 @@
 # CortHeXis memory engine — model servers (llama.cpp) and first-run model setup.
 #
 # Self-contained: usable alone (`docker compose -f docker/embed/compose.yml up -d`)
-# or included by an application compose (SOKKAN: `include:` in docker-compose.yml).
+# or included by an application compose (the CortHeXis `docker-compose.yml`, SOKKAN).
 # Variables: CORTHEXIS_* (SOKKAN_* read as a fallback). Nothing is published on
 # the host: clients reach the servers on the compose network.
 #
@@ -56,7 +56,7 @@ services:
       CORTHEXIS_RERANK: ${CORTHEXIS_RERANK:-}
     volumes:
       - corthexis-models:/models
-      - ../../memory/core/models.py:/opt/corthexis/models.py:ro
+      - ../../corthexis/models.py:/opt/corthexis/models.py:ro
     security_opt:
       - no-new-privileges:true
 

@@ -4,10 +4,9 @@
   python3 profiles.py                  # JSON (schema corthexis/memory-profile/v1)
   python3 profiles.py --env [PREFIX]   # PREFIX_MEMORY_PROFILE=… lines (default CORTHEXIS)
 
-Pure standard library and self-contained (no import from its package): the
-same file ships with the SOKKAN Magnitude host agent as `magnitude/memprofile.py`
-(`python3 -m magnitude --memory-profile`). Keep the two copies identical —
-a test checks it.
+Pure standard library and self-contained (no import from its package): a copy
+ships with the SOKKAN Magnitude host agent as `magnitude/memprofile.py`
+(`python3 -m magnitude --memory-profile`); SOKKAN's tests check the copy.
 
 Profiles (figures from the memory bench of 03.10.2026: 300 questions, 2 498
 chunks, i9-9980XE shared with a production load, Arc Pro B60 for the GPU pass):

@@ -1,0 +1,36 @@
+# NVIDIA GPU — llama.cpp CUDA build (needs the NVIDIA Container Toolkit). With the root compose:
+#   CORTHEXIS_MEMORY_PROFILE=gpu docker compose -f docker-compose.yml \
+#     -f docker/compose.gpu-nvidia.yml --profile rerank up -d
+# Same layout as compose.gpu-intel.yml. Card: CORTHEXIS_GPU_DEVICE (default 0).
+# Apple GPU: Docker has no Metal — run docker/embed/run.sh natively (LLAMA_SERVER=llama-server)
+# and point CORTHEXIS_EMBED_URLS at it.
+x-cuda: &cuda
+  image: ghcr.io/ggml-org/llama.cpp:${CORTHEXIS_LLAMACPP_CUDA_TAG:-server-cuda-b11347}
+  restart: on-failure:3
+  entrypoint: ["/bin/sh", "/opt/corthexis/run.sh"]
+  volumes:
+    - corthexis-models:/models:ro
+    - ./docker/embed/run.sh:/opt/corthexis/run.sh:ro
+  depends_on:
+    corthexis-embed-fetch:
+      condition: service_completed_successfully
+  environment:
+    CORTHEXIS_MEMORY_PROFILE: gpu
+    CORTHEXIS_EMBED_DEVICE: gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            device_ids: ["${CORTHEXIS_GPU_DEVICE:-0}"]
+            capabilities: [gpu]
+
+services:
+  corthexis-embed-gpu:
+    <<: *cuda
+    command: ["embed"]
+    mem_limit: ${CORTHEXIS_EMBED_GPU_MEM:-4g}
+  corthexis-rerank:
+    <<: *cuda
+    command: ["rerank"]
+    mem_limit: ${CORTHEXIS_RERANK_MEM:-4g}

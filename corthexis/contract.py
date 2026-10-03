@@ -31,7 +31,7 @@ class NoteRecord:
     type: str
     priority: int
     source_path: str
-    modified: str | None          # ISO 8601, effective date (see core.dates)
+    modified: str | None          # ISO 8601, effective date (see corthexis.dates)
     modified_source: str          # one of DATE_SOURCES
     body: str
 
@@ -68,7 +68,7 @@ class Hit:
 class SeenRecord:
     """One row of ``note_versions``: a version of a note as the indexer saw it.
 
-    ``content_hash`` is the link-insensitive body hash (core.dates.content_hash);
+    ``content_hash`` is the link-insensitive body hash (corthexis.dates.content_hash);
     ``first_seen`` is when that *body* was first seen, carried over across
     description-only changes and renames; ``seen_at`` is when this version (body
     and description) was recorded.

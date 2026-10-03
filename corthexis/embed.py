@@ -38,7 +38,7 @@ import threading
 import time
 from pathlib import Path
 
-try:  # package import (memory/ on sys.path → `core.embed`)
+try:  # package import (`corthexis.embed`)
     from . import models as _models
 except ImportError:  # loaded as a top-level module
     import models as _models  # type: ignore[no-redef]

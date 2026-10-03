@@ -1,0 +1,86 @@
+# CortHeXis — standalone install.
+#
+#   ./setup.sh            .env (token, notes folder, your uid) + the Gemma licence question
+#   docker compose up -d  → http://localhost:8420  (MCP at /mcp, Bearer CORTHEXIS_TOKEN)
+#
+# Services
+#   db                     Postgres 16 + pgvector: notes, passages, index generations, history
+#   corthexis-embed-fetch  one-shot: licence decision, model download + SHA-256 (docker/embed)
+#   corthexis-embed        llama.cpp embedding server, CPU (EmbeddingGemma-300m, or the MIT
+#                          fallback multilingual-e5-base when the Gemma terms are not accepted)
+#   corthexis-rerank       reranker, compose profile `rerank` (standard / gpu profiles)
+#   corthexis              indexer + reviewer + dashboard + MCP over HTTP
+#
+# GPU: add -f docker/compose.gpu-intel.yml (Intel Arc) or -f docker/compose.gpu-nvidia.yml
+# (NVIDIA) and set CORTHEXIS_MEMORY_PROFILE=gpu (see the README, "Profiles").
+# Hosts with no free Docker address pool: add -f docker/compose.bridge.yml.
+name: corthexis
+
+include:
+  - docker/embed/compose.yml   # model servers; they read the same .env
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: corthexis
+      POSTGRES_PASSWORD: ${CORTHEXIS_DB_PASSWORD:-corthexis}
+      POSTGRES_DB: corthexis
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corthexis -d corthexis"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: ${CORTHEXIS_DB_MEM:-768m}
+    security_opt:
+      - no-new-privileges:true
+
+  corthexis:
+    build: .
+    image: ${CORTHEXIS_IMAGE:-corthexis:2.0.0}
+    restart: unless-stopped
+    user: "${CORTHEXIS_UID:-1000}:${CORTHEXIS_GID:-1000}"
+    environment:
+      CORTHEXIS_DATABASE_URL: postgresql://corthexis:${CORTHEXIS_DB_PASSWORD:-corthexis}@db:5432/corthexis
+      CORTHEXIS_MEMORY_DIR: /notes
+      CORTHEXIS_MODELS_DIR: /models
+      CORTHEXIS_DATA_DIR: /data
+      CORTHEXIS_MEMORY_PROFILE: ${CORTHEXIS_MEMORY_PROFILE:-leger}
+      CORTHEXIS_EMBED_URLS: ${CORTHEXIS_EMBED_URLS:-}
+      CORTHEXIS_RERANK_URL: ${CORTHEXIS_RERANK_URL:-}
+      CORTHEXIS_TOKEN: ${CORTHEXIS_TOKEN:-}
+      CORTHEXIS_PUBLIC_URL: ${CORTHEXIS_PUBLIC_URL:-http://localhost:8420}
+      CORTHEXIS_ALLOWED_HOSTS: ${CORTHEXIS_ALLOWED_HOSTS:-}
+      CORTHEXIS_DASHBOARD_PUBLIC: ${CORTHEXIS_DASHBOARD_PUBLIC:-0}
+      CORTHEXIS_DEMO: ${CORTHEXIS_DEMO:-0}
+      CORTHEXIS_UI_LANG: ${CORTHEXIS_UI_LANG:-}
+      CORTHEXIS_NORMALIZE: ${CORTHEXIS_NORMALIZE:-true}
+      CORTHEXIS_WRITE_INDEX: ${CORTHEXIS_WRITE_INDEX:-true}
+      CORTHEXIS_REVIEW_EVERY_S: ${CORTHEXIS_REVIEW_EVERY_S:-3600}
+      CORTHEXIS_REVIEW_DIGEST_AT: ${CORTHEXIS_REVIEW_DIGEST_AT:-08:20}
+      CORTHEXIS_REVIEW_TZ: ${CORTHEXIS_REVIEW_TZ:-UTC}
+      CORTHEXIS_NOTIFY_WEBHOOKS: ${CORTHEXIS_NOTIFY_WEBHOOKS:-}
+      CORTHEXIS_NOTIFY_FORMAT: ${CORTHEXIS_NOTIFY_FORMAT:-json}
+      CORTHEXIS_NOTIFY_CMD: ${CORTHEXIS_NOTIFY_CMD:-}
+      CORTHEXIS_RECALL: ${CORTHEXIS_RECALL:-1}
+    volumes:
+      - ${CORTHEXIS_NOTES:-./examples/agent-memory}:/notes
+      - corthexis-models:/models:ro
+      - data:/data
+    ports:
+      - "${CORTHEXIS_BIND:-127.0.0.1}:${CORTHEXIS_PORT:-8420}:8420"
+    depends_on:
+      db:
+        condition: service_healthy
+      corthexis-embed-fetch:
+        condition: service_completed_successfully
+    mem_limit: ${CORTHEXIS_MEM:-768m}
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  db:
+  data:

@@ -1,6 +1,4 @@
 """corthexis.profiles — recommended memory profile on simulated hardware, detection helpers."""
-import json
-import time
 from pathlib import Path
 
 import pytest

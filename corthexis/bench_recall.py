@@ -12,7 +12,7 @@ not what a model answers: it measures the mechanism without spending model credi
 generic messages double as negatives: a recall on "run the tests again" is noise in the
 context, so their injection rate is the false-positive rate of the threshold.
 
-    python -m core.bench_recall --dsn postgresql://… [--load] [--profile gpu] [--json]
+    python -m corthexis.bench_recall --dsn postgresql://… [--load] [--profile gpu] [--json]
 
 ``--load`` indexes the fictional corpus into the store first (use a throw-away database).
 Embedding / reranker servers come from the ``CORTHEXIS_*`` configuration.
@@ -262,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
     import json
 
-    ap = argparse.ArgumentParser(prog="python -m core.bench_recall")
+    ap = argparse.ArgumentParser(prog="corthexis bench_recall")
     ap.add_argument("--dsn", required=True)
     ap.add_argument("--load", action="store_true", help="index the fictional corpus first")
     ap.add_argument("--profile", help="leger | standard | gpu (default: configured)")

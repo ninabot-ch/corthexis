@@ -2,10 +2,10 @@
 
 One pass:
 
-1. (optional) ``core.normalize`` brings the corpus back to the naming convention;
-2. every note is parsed, its effective date computed (``core.dates``) and its
+1. (optional) ``corthexis.normalize`` brings the corpus back to the naming convention;
+2. every note is parsed, its effective date computed (``corthexis.dates``) and its
    version recorded; the "description != body" check runs on its history
-   (``core.drift``);
+   (``corthexis.drift``);
 3. notes whose content changed are chunked and embedded, the others only get their
    metadata (date) refreshed; notes whose file disappeared are deleted;
 4. MEMORY.md (the index loaded whole into every session) is regenerated within its
@@ -572,7 +572,7 @@ class IndexRunner:
         self.log = log or (lambda msg: print(f"[corthexis] {msg}", file=sys.stderr))
         self.on_report = on_report
         # True: the runner only ever activates the FIRST generation (new install); any
-        # later model change goes through a gated switch (core.switch), never through here.
+        # later model change goes through a gated switch (corthexis.switch), never through here.
         # ``embedder_factory`` is then called at every pass and may return None (no
         # embedder serves the active generation: the pass is skipped).
         self.activate_first_only = activate_first_only
@@ -715,11 +715,11 @@ def _report_text(rep: IndexReport) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """``python -m core.indexer [--watch] [--rebuild] [--memory-dir DIR] [--json]``"""
+    """``corthexis index [--watch] [--rebuild] [--memory-dir DIR] [--json]``"""
     import argparse
     import json
 
-    ap = argparse.ArgumentParser(prog="python -m core.indexer",
+    ap = argparse.ArgumentParser(prog="corthexis index",
                                  description="Index the memory notes into the store.")
     ap.add_argument("--memory-dir", help="notes directory (CORTHEXIS_MEMORY_DIR)")
     ap.add_argument("--watch", action="store_true",

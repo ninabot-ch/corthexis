@@ -1,6 +1,6 @@
 """Bring a memory corpus back to ONE naming convention, and keep it there.
 
-Invariant (core.notes)::
+Invariant (corthexis.notes)::
 
     file = <name with "-" replaced by "_">.md        name = kebab-case
 
@@ -26,7 +26,7 @@ session may be writing it.
 Everything is computed in memory first, so ``--dry-run`` shows the exact plan
 (renames, merges, rewrites, re-linked notes) that applying would carry out::
 
-    python -m core.normalize <memory_dir> --dry-run
+    python -m corthexis.normalize <memory_dir> --dry-run
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ class Plan:
     dry_run: bool
     actions: list[Action] = field(default_factory=list)
     # new body hash -> body hash before this pass, for every note whose body was only
-    # rewritten mechanically (links, file mentions). core.dates uses it so that such
+    # rewritten mechanically (links, file mentions). corthexis.dates uses it so that such
     # notes keep their date even when the rewrite changed a link *target*.
     hash_aliases: dict[str, str] = field(default_factory=dict)
     renamed: dict[str, str] = field(default_factory=dict)       # old file -> new file

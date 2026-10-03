@@ -17,8 +17,8 @@ Vectors are clustered by topic (2 000 topic centres, chunks = centre + noise) as
 embeddings are; queries are stored chunks plus noise, so that true neighbours exist, as
 with a real question.
 
-    python -m core.bench_store --dsn postgresql://u:p@127.0.0.1:55432/postgres \\
-        --container sokkan-v3-store-pg --sizes 25000,100000,250000
+    python -m corthexis.bench_store --dsn postgresql://u:p@127.0.0.1:55432/postgres \\
+        --container corthexis-bench-pg --sizes 25000,100000,250000
 """
 from __future__ import annotations
 
@@ -148,7 +148,7 @@ def search_latency(store: Store, queries, cfg: SearchConfig, k: int = 8):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--dsn", required=True, help="server DSN (a database 'sokkan_bench' is "
+    ap.add_argument("--dsn", required=True, help="server DSN (a database 'corthexis_bench' is "
                     "created and dropped)")
     ap.add_argument("--container", help="Postgres container name, for docker stats")
     ap.add_argument("--sizes", default="25000,100000,250000")
@@ -176,9 +176,9 @@ def main() -> int:
     sizes = [int(s) for s in a.sizes.split(",")]
     efs = [int(e) for e in a.ef_search.split(",")]
     with psycopg.connect(a.dsn, autocommit=True) as con:
-        con.execute("DROP DATABASE IF EXISTS sokkan_bench WITH (FORCE)")
-        con.execute("CREATE DATABASE sokkan_bench")
-    dsn = a.dsn.rsplit("/", 1)[0] + "/sokkan_bench"
+        con.execute("DROP DATABASE IF EXISTS corthexis_bench WITH (FORCE)")
+        con.execute("CREATE DATABASE corthexis_bench")
+    dsn = a.dsn.rsplit("/", 1)[0] + "/corthexis_bench"
     store = Store(dsn, max_size=2)
     corpus = Corpus(a.dim, topics=a.topics, spread=a.spread)
     rng = np.random.default_rng(7)
@@ -262,7 +262,7 @@ def main() -> int:
         store.close()
         if not a.keep:
             with psycopg.connect(a.dsn, autocommit=True) as con:
-                con.execute("DROP DATABASE IF EXISTS sokkan_bench WITH (FORCE)")
+                con.execute("DROP DATABASE IF EXISTS corthexis_bench WITH (FORCE)")
     if a.json:
         Path(a.json).write_text(json.dumps(report, indent=2))
     print(json.dumps(report, indent=2))

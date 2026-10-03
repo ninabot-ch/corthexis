@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "corthexis"
+version = "2.0.0"
+description = "A memory for AI agents that reads itself back: semantic recall over MCP, per-turn recall hook, automatic review, repairs with approval, recall bench."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Ninabot Sàrl", email = "hello@ninabot.ch" }]
+keywords = ["memory", "mcp", "agents", "claude-code", "rag", "pgvector", "embeddings"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development",
+]
+dependencies = [
+    "psycopg[binary]>=3.2",
+    "psycopg-pool>=3.2",
+    "pgvector>=0.3",
+    "numpy>=1.26",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    "mcp>=1.12,<2",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+# SOKKAN 2.x embeddings in process (profile "legacy"); not needed otherwise
+legacy = ["fastembed>=0.4"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://corthexis.com"
+Source = "https://github.com/ninabot-ch/corthexis"
+
+[project.scripts]
+corthexis = "corthexis.cli:main"
+
+[tool.setuptools]
+packages = ["corthexis", "corthexis.dashboard"]
+
+[tool.setuptools.package-data]
+corthexis = ["schema.sql", "migrations/*.sql"]
+"corthexis.dashboard" = ["static/*", "static/vendor/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = [
+    "E402",  # imports after pytest.importorskip / sys.path setup in tests
+    "E741",  # short loop variables in parsing code
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

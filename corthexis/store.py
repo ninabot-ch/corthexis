@@ -1,4 +1,4 @@
-"""SOKKAN 3.0 memory store — Postgres + pgvector (P0-2).
+"""CortHeXis memory store — Postgres + pgvector (P0-2).
 
 The store holds the index of the markdown notes (the files stay the source of truth) and
 answers the two-stage search: hybrid candidates from Postgres (dense HNSW + lexical GIN),

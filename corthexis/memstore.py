@@ -1,4 +1,4 @@
-"""In-memory ``IndexStore``: the executable spec of what core.indexer expects.
+"""In-memory ``IndexStore``: the executable spec of what corthexis.indexer expects.
 
 Used by the tests; small enough to read as documentation of the semantics
 (versions, rename inheritance, generations) the Postgres store has to honour.

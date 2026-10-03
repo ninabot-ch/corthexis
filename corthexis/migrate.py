@@ -1,4 +1,5 @@
-"""Migrate a memory from SOKKAN 2.x (notes + ``memory.db``) to the 3.0 store, without loss.
+"""Migrate a memory from a SQLite index (CortHeXis 1.x, SOKKAN 2.x: notes + ``memory.db``)
+to the Postgres store, without loss.
 
 Runs on its own at the first start of 3.0 and can be interrupted at any point: every step
 is idempotent and the progress lives in ``state.json`` next to the archive, so a restart
@@ -26,7 +27,7 @@ A failed check blocks the switch (status ``blocked``) and the 2.x index keeps se
 ``approve("override")`` goes on in spite of it, on purpose. Rolling back = the previous image
 and the untouched ``memory.db`` (plus the archive if normalize renamed files).
 
-    python -m core.migrate status|run|approve <step> --memory-dir … --work-dir … [--legacy-db …]
+    corthexis migrate status|run|approve <step> --memory-dir … --work-dir … [--legacy-db …]
 """
 from __future__ import annotations
 
@@ -136,9 +137,9 @@ def legacy_index(db_path: Path | str | None) -> dict | None:
 class Migration:
     """One migration of ``memory_dir`` into ``store``; state and archive in ``work_dir``.
 
-    ``store``     an IndexStore (core.contract) with ``activate_generation``: the Postgres
-                  store in production, ``core.memstore.InMemoryStore`` in tests.
-    ``embedder``  the 3.0 embedder (``core.embed.get()``) — a callable returning it is
+    ``store``     an IndexStore (corthexis.contract) with ``activate_generation``: the Postgres
+                  store in production, ``corthexis.memstore.InMemoryStore`` in tests.
+    ``embedder``  the 3.0 embedder (``corthexis.embed.get()``) — a callable returning it is
                   accepted, so a server that is not up yet only delays the ``index`` step.
     ``legacy_db`` the 2.x ``memory.db`` (read-only, never written).
     """

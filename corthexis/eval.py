@@ -22,10 +22,10 @@ Self-contained (CortHeXis memory-core): it talks to the ``Store`` (Postgres, tab
 ``migrations/0006_eval.sql``) and to any embedder with ``embed_query`` (and optionally
 ``rerank`` / ``rerank_policy`` / ``identity``).
 
-    python -m core.eval --dsn postgresql://… run            # bench the active generation
-    python -m core.eval harvest ~/.claude/projects/<proj>/  # questions from transcripts
-    python -m core.eval add "how do we restore a backup?" backup-runbook
-    python -m core.eval report                               # last runs, by source
+    corthexis eval --dsn postgresql://… run            # bench the active generation
+    corthexis eval harvest ~/.claude/projects/<proj>/  # questions from transcripts
+    corthexis eval add "how do we restore a backup?" backup-runbook
+    corthexis eval report                               # last runs, by source
 """
 from __future__ import annotations
 
@@ -807,7 +807,7 @@ def _fmt(m: dict | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m core.eval",
+    ap = argparse.ArgumentParser(prog="corthexis eval",
                                  description="recall bench on your own notes")
     ap.add_argument("--dsn", default=None, help="Postgres DSN (default CORTHEXIS_DATABASE_URL)")
     sub = ap.add_subparsers(dest="cmd", required=True)

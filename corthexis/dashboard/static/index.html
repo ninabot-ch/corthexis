@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>CortHeXis</title>
+<link rel="icon" href="/mark-simple.svg?v=2" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css?v=20">
+</head>
+<body>
+<canvas id="stars"></canvas>
+<canvas id="graph"></canvas>
+<div id="vignette"></div>
+
+<header id="hud">
+  <div class="brand">
+    <img src="/mark.svg?v=2" alt="" class="mark">
+    <div>
+      <div class="title">Cort<span>HeXis</span></div>
+      <div class="sub" data-i18n="subtitle">memory cortex</div>
+    </div>
+  </div>
+  <div class="tiles">
+    <div class="tile"><div class="k" data-count="notes">—</div><div class="l" data-i18n="notes">notes</div></div>
+    <div class="tile"><div class="k" data-count="words">—</div><div class="l" data-i18n="words">words</div></div>
+    <div class="tile"><div class="k" data-count="links">—</div><div class="l" data-i18n="synapses">synapses</div></div>
+    <div class="tile"><div class="k" data-count="chunks">—</div><div class="l" data-i18n="chunks">indexed passages</div></div>
+  </div>
+  <div class="health" id="health">
+    <svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="healthArc" cx="32" cy="32" r="27"/></svg>
+    <div class="hv"><span id="healthScore">—</span><small data-i18n="health">health</small></div>
+  </div>
+  <div class="live" id="live"><span class="dot"></span><span id="liveText">…</span></div>
+</header>
+
+<div id="searchWrap">
+  <div class="searchBox">
+    <span class="ico">◎</span>
+    <input id="search" type="search" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </div>
+  <div id="results" hidden></div>
+</div>
+
+<nav id="modes">
+  <button data-mode="synapse" class="on" data-i18n="m_synapse">Synapses</button>
+  <button data-mode="semantic" data-i18n="m_semantic">Constellation</button>
+  <button data-mode="age" data-i18n="m_age">Age</button>
+  <button data-mode="health" data-i18n="m_health">Health</button>
+  <span class="sep"></span>
+  <label class="chk"><input type="checkbox" id="labels"> <span data-i18n="labels">labels</span></label>
+</nav>
+
+<aside id="legend">
+  <div class="lg" data-type="project"><i></i><span data-i18n="t_project">project</span></div>
+  <div class="lg" data-type="feedback"><i></i><span data-i18n="t_feedback">rule</span></div>
+  <div class="lg" data-type="reference"><i></i><span data-i18n="t_reference">reference</span></div>
+  <div class="lg" data-type="user"><i></i><span data-i18n="t_user">user</span></div>
+  <div class="lg" data-type="unknown"><i></i><span data-i18n="t_unknown">no type</span></div>
+  <div class="lg ghost"><i></i><span data-i18n="t_ghost">broken link</span></div>
+</aside>
+
+<aside id="panel" class="closed">
+  <div class="tabs">
+    <button data-tab="note" class="on" data-i18n="tab_note">Note</button>
+    <button data-tab="review"><span data-i18n="tab_review">Health</span> <span id="reviewBadge" class="badge" hidden></span></button>
+    <button data-tab="repairs"><span data-i18n="tab_repairs">Repairs</span> <span id="repairBadge" class="badge warn" hidden></span></button>
+    <button data-tab="bench" data-i18n="tab_bench">Bench</button>
+    <button data-tab="pulse" data-i18n="tab_pulse">Pulse</button>
+    <button id="closePanel" class="x"><span>×</span></button>
+  </div>
+  <section id="tab-note" class="tab on"><div class="empty" data-i18n="pick">Click a neuron, or ask the memory.</div></section>
+  <section id="tab-review" class="tab"></section>
+  <section id="tab-repairs" class="tab"></section>
+  <section id="tab-bench" class="tab"></section>
+  <section id="tab-pulse" class="tab"></section>
+  <button id="closeFab" aria-label="close">×</button>
+</aside>
+
+<div id="login" hidden>
+  <form class="card">
+    <img src="/mark.svg?v=2" alt="" class="mark">
+    <h2 data-i18n="login_title">This memory is private</h2>
+    <p data-i18n="login_text">Paste the service token (CORTHEXIS_TOKEN in the .env of the install).</p>
+    <input id="tokenInput" type="password" autocomplete="current-password" spellcheck="false">
+    <button class="btn" type="submit" data-i18n="login_go">Open</button>
+    <div class="small" id="loginErr"></div>
+  </form>
+</div>
+
+<div id="tip" hidden></div>
+<div id="toasts"></div>
+
+<script src="/vendor/d3.v7.min.js"></script>
+<script src="/vendor/marked.min.js"></script>
+<script src="/i18n.js?v=20"></script>
+<script src="/app.js?v=20"></script>
+</body>
+</html>

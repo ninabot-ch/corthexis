@@ -1,4 +1,4 @@
-"""Pure ranking logic of the SOKKAN memory search (no database, no network).
+"""Pure ranking logic of the CortHeXis memory search (no database, no network).
 
 The store fetches candidates from Postgres (dense HNSW + lexical GIN); this module turns
 them into a ranking. It is a port of the ranking used by the internal reference

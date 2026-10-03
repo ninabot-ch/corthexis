@@ -5,4 +5,7 @@ venv/
 *.db
 .env
 # The generated index lives next to the notes it describes.
-examples/MEMORY.md
+examples/*/MEMORY.md
+*.egg-info/
+build/
+dist/

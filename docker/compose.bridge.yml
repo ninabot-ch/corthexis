@@ -1,0 +1,13 @@
+# For Docker hosts whose address pools are exhausted ("all predefined address pools have
+# been fully subnetted"): every container on the default bridge, names resolved by links.
+#   docker compose -f docker-compose.yml -f docker/compose.bridge.yml up -d
+services:
+  db:
+    network_mode: bridge
+  corthexis-embed-fetch:
+    network_mode: bridge
+  corthexis-embed:
+    network_mode: bridge
+  corthexis:
+    network_mode: bridge
+    links: [db, corthexis-embed]

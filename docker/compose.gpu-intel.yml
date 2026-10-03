@@ -1,0 +1,33 @@
+# Intel GPU (Arc / Arc Pro / Data Center) — llama.cpp SYCL build. With the root compose:
+#   CORTHEXIS_MEMORY_PROFILE=gpu docker compose -f docker-compose.yml \
+#     -f docker/compose.gpu-intel.yml --profile rerank up -d
+# Adds corthexis-embed-gpu in front of the CPU server (the client tries the GPU first, the
+# CPU one if the card is busy or gone: same model, same vectors) and moves the reranker to
+# the GPU. Measured on an Arc Pro B60: embedding +0.5 GB VRAM, 13 ms per query;
+# Qwen3-Reranker-0.6B +3.0 GB. Card: CORTHEXIS_GPU_DEVICE (Level Zero index, default 0).
+x-sycl: &sycl
+  image: ghcr.io/ggml-org/llama.cpp:${CORTHEXIS_LLAMACPP_SYCL_TAG:-server-intel-b11347}
+  restart: on-failure:3
+  entrypoint: ["/bin/sh", "/opt/corthexis/run.sh"]
+  devices:
+    - /dev/dri:/dev/dri
+  volumes:
+    - corthexis-models:/models:ro
+    - ./docker/embed/run.sh:/opt/corthexis/run.sh:ro
+  depends_on:
+    corthexis-embed-fetch:
+      condition: service_completed_successfully
+  environment:
+    CORTHEXIS_MEMORY_PROFILE: gpu
+    CORTHEXIS_EMBED_DEVICE: gpu
+    ZE_AFFINITY_MASK: ${CORTHEXIS_GPU_DEVICE:-0}
+
+services:
+  corthexis-embed-gpu:
+    <<: *sycl
+    command: ["embed"]
+    mem_limit: ${CORTHEXIS_EMBED_GPU_MEM:-4g}
+  corthexis-rerank:
+    <<: *sycl
+    command: ["rerank"]
+    mem_limit: ${CORTHEXIS_RERANK_MEM:-4g}

@@ -32,3 +32,8 @@ def env_bool(name: str, default: bool) -> bool:
 def env_list(name: str, sep: str = ",") -> list[str]:
     raw = env(name) or ""
     return [x.strip() for x in raw.split(sep) if x.strip()]
+
+
+# CortHeXis 1.x names, still read: CORTHEXIS_NOTES_DIR is the notes folder.
+if os.environ.get("CORTHEXIS_NOTES_DIR") and not os.environ.get("CORTHEXIS_MEMORY_DIR"):
+    os.environ["CORTHEXIS_MEMORY_DIR"] = os.environ["CORTHEXIS_NOTES_DIR"]

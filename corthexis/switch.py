@@ -9,7 +9,7 @@ Changing profile (leger / standard / gpu), model or embedding servers goes throu
    while the current one keeps serving every search; the same model on other servers (CPU
    to GPU, reranker added) reuses the active generation — its vectors are the same — unless
    a rebuild is asked for.
-2. **evaluating** — the recall bench (``core.eval``) runs the same questions on the current
+2. **evaluating** — the recall bench (``corthexis.eval``) runs the same questions on the current
    setup and on the target.
 3. **switched** — when the target does not lose more than ``max_drop`` of MRR on at least
    ``eval.MIN_COMMON`` shared questions, the generation is activated in one transaction
@@ -127,7 +127,7 @@ def preflight(embedder, timeout: float = 5.0) -> list[str]:
             problems.append(f"{url} serves {served[0].rsplit('/', 1)[-1]}, not {want}")
     if not alive:
         problems.append("no memory server of this profile answers — start them first "
-                        "(./scripts/memory-setup.sh --profile <profile>, then docker compose up -d)")
+                        "(`docker compose up -d` with that profile's model servers)")
         return problems
     try:
         embedder.embed_query("probe", timeout=timeout * 2)

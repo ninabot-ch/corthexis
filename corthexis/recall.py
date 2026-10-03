@@ -21,9 +21,9 @@ and a note may carry an order.
 
 Entry point for a Claude Code command hook (stdin = the hook JSON)::
 
-    python -m core.recall          # UserPromptSubmit and PreToolUse (Task|Agent)
+    python -m corthexis.recall          # UserPromptSubmit and PreToolUse (Task|Agent)
 
-The store and the embedder are the ones of ``core.store`` / ``core.embed`` (configured
+The store and the embedder are the ones of ``corthexis.store`` / ``corthexis.embed`` (configured
 by ``CORTHEXIS_*`` variables). Nothing here imports the application.
 """
 from __future__ import annotations
@@ -47,7 +47,7 @@ SUBAGENT_TOOLS = ("Task", "Agent")
 # coding prompts, see memory/README.md "Recall at every turn"): 0.35 injects the expected
 # note for 77 % of the questions, 0.50 (the 2.x value) for 22 % only. e5: NOT measured,
 # estimated from its packed cosines (0.7-0.9) and lexical weight 0.1 — re-tune with
-# core.bench_recall before relying on it.
+# corthexis.bench_recall before relying on it.
 MODEL_THRESHOLDS = (
     ("embeddinggemma", 0.35),
     ("e5", 0.80),
@@ -183,7 +183,7 @@ def _one_line(text: str, cap: int) -> str:
 
 class Recaller:
     """Search + selection + logging of one recall. Thread-safe as long as the store and
-    the embedder are (``core.store.Store`` and ``core.embed`` clients are)."""
+    the embedder are (``corthexis.store.Store`` and ``corthexis.embed`` clients are)."""
 
     def __init__(self, store, embedder, config: RecallConfig | None = None, *,
                  profile: str | None = None, clock=time.monotonic, log=None):
@@ -441,7 +441,7 @@ def default_recaller(*, profile: str | None = None) -> Recaller:
 
 
 def query_embedder(store):
-    """The embedder serving the active generation (``core.switch`` when present: the
+    """The embedder serving the active generation (``corthexis.switch`` when present: the
     profile chosen by the operator), else the configured one."""
     from . import embed
 

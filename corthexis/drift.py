@@ -88,7 +88,7 @@ class DriftFinding:
 
 def check_versions(note: str, versions: list) -> DriftFinding | None:
     """``versions``: oldest first, the last one is the current state. Each item has
-    ``description``, ``body`` and ``seen_at`` (core.contract.SeenRecord)."""
+    ``description``, ``body`` and ``seen_at`` (corthexis.contract.SeenRecord)."""
     if len(versions) < 2:
         return None
     cur = versions[-1]
