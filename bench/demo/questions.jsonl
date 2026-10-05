@@ -1,0 +1,60 @@
+{"id": "d01", "q": "Quel est le montant de couverture de notre RC pro et quand faut-il la résilier si on veut renégocier ?", "lang": "fr", "kind": "fact", "expected": ["admin-assurance-rc-professionnelle"]}
+{"id": "d02", "q": "Un client veut l'attestation d'assurance avant de signer, on la trouve où ?", "lang": "fr", "kind": "body", "expected": ["admin-assurance-rc-professionnelle"]}
+{"id": "d03", "q": "Le patron peut-il assister à l'atelier de diagnostic ?", "lang": "fr", "kind": "fact", "expected": ["atelier-diagnostic-90-minutes"]}
+{"id": "d04", "q": "Combien de temps dure l'atelier de diagnostic et combien de participants au maximum ?", "lang": "fr", "kind": "fact", "expected": ["atelier-diagnostic-90-minutes"]}
+{"id": "d05", "q": "Est-ce qu'on peut modifier directement l'ERP chez ARVA ?", "lang": "fr", "kind": "fact", "expected": ["client-arva-negoce", "piege-sage-x3-champs-personnalises"]}
+{"id": "d06", "q": "Pourquoi a-t-on refusé l'opticien de Morges ?", "lang": "fr", "kind": "paraphrase", "expected": ["client-lemanic-optique"]}
+{"id": "d07", "q": "Perreaud paie toujours en retard, c'est de la mauvaise volonté ?", "lang": "fr", "kind": "fact", "expected": ["client-perreaud-transports"]}
+{"id": "d08", "q": "Quel est notre seul mandat récurrent ?", "lang": "fr", "kind": "body", "expected": ["client-perreaud-transports"]}
+{"id": "d09", "q": "Comment obtenir une décision chez la menuiserie de Bulle ?", "lang": "fr", "kind": "paraphrase", "expected": ["client-rochat-et-fils", "personne-nadege-et-pierre-rochat"]}
+{"id": "d10", "q": "Le dirigeant de Sainte-Croix change souvent d'avis, comment on gère ?", "lang": "fr", "kind": "paraphrase", "expected": ["personne-yves-vallotton", "client-vallotton-precision"]}
+{"id": "d11", "q": "Quel pourcentage d'acompte demande-t-on à un nouveau client, et à quel moment ?", "lang": "fr", "kind": "fact", "expected": ["facturation-acompte-nouveau-client"]}
+{"id": "d12", "q": "Un client recommandé est-il dispensé d'acompte ?", "lang": "fr", "kind": "body", "expected": ["facturation-acompte-nouveau-client"]}
+{"id": "d13", "q": "Une facture n'est toujours pas payée, je relance par mail ?", "lang": "fr", "kind": "fact", "expected": ["facturation-delai-paiement"]}
+{"id": "d14", "q": "Facture-t-on à la fin de la mission ?", "lang": "fr", "kind": "fact", "expected": ["facturation-delai-paiement"]}
+{"id": "d15", "q": "Peut-on cartographier un processus à partir des procédures qualité du client ?", "lang": "fr", "kind": "fact", "expected": ["methode-cartographie-processus"]}
+{"id": "d16", "q": "Quel écart entre processus réel et voulu a-t-on trouvé chez Perreaud ?", "lang": "fr", "kind": "body", "expected": ["methode-cartographie-processus"]}
+{"id": "d17", "q": "Comment présenter un gain chiffré sans se griller ?", "lang": "fr", "kind": "paraphrase", "expected": ["methode-chiffrage-du-gain"]}
+{"id": "d18", "q": "Quelle question pose-t-on en ouverture d'un entretien de terrain ?", "lang": "fr", "kind": "body", "expected": ["methode-entretien-terrain"]}
+{"id": "d19", "q": "Combien de pages pour le rapport final ?", "lang": "fr", "kind": "paraphrase", "expected": ["methode-restitution-en-une-page", "mirabeau-comment-on-ecrit", "outil-modele-de-restitution"]}
+{"id": "d20", "q": "Est-ce qu'on accepte de faire du recrutement pour un client ?", "lang": "fr", "kind": "fact", "expected": ["mirabeau-ce-qu-on-ne-fait-pas"]}
+{"id": "d21", "q": "Quels mots de jargon sont bannis de nos livrables ?", "lang": "fr", "kind": "body", "expected": ["mirabeau-comment-on-ecrit"]}
+{"id": "d22", "q": "Le client veut un prix ferme pour toute la mission, que répondre ?", "lang": "fr", "kind": "fact", "expected": ["mirabeau-devis-jamais-au-forfait"]}
+{"id": "d23", "q": "Combien de jours avons-nous offerts sur la mission Rochat de 2025 ?", "lang": "fr", "kind": "fact", "expected": ["mirabeau-devis-jamais-au-forfait"]}
+{"id": "d24", "q": "Quel outil utilise-t-on pour la facturation ?", "lang": "fr", "kind": "fact", "expected": ["mirabeau-outils"]}
+{"id": "d25", "q": "Quel est notre tarif journalier ?", "lang": "fr", "kind": "fact", "expected": ["mirabeau-tarifs-et-frais"]}
+{"id": "d26", "q": "Le client demande une remise en cours de mandat, on accepte ?", "lang": "fr", "kind": "fact", "expected": ["mirabeau-tarifs-et-frais"]}
+{"id": "d27", "q": "Chez ARVA, quel est le vrai problème derrière les ruptures de stock ?", "lang": "fr", "kind": "fact", "expected": ["mission-arva-ruptures-stock"]}
+{"id": "d28", "q": "Que fait-on le troisième jour d'une mission ?", "lang": "fr", "kind": "fact", "expected": ["mission-cadrage-premiere-semaine"]}
+{"id": "d29", "q": "Le client nous appelle encore tous les lundis six mois après la fin, qu'a-t-on raté ?", "lang": "fr", "kind": "paraphrase", "expected": ["mission-clore-proprement"]}
+{"id": "d30", "q": "Combien de temps doit durer un comité de pilotage ?", "lang": "fr", "kind": "fact", "expected": ["mission-comite-pilotage"]}
+{"id": "d31", "q": "What did we actually deliver instead of the scheduling software at the joinery?", "lang": "en", "kind": "paraphrase", "expected": ["mission-rochat-ordonnancement"]}
+{"id": "d32", "q": "What checks do we run on a client data export before analysing it?", "lang": "en", "kind": "fact", "expected": ["outil-checklist-reprise-donnees"]}
+{"id": "d33", "q": "Where is the template for the one-page final report?", "lang": "en", "kind": "fact", "expected": ["outil-modele-de-restitution"]}
+{"id": "d34", "q": "Can I put two clients' figures in the same margin spreadsheet if I hide the names?", "lang": "en", "kind": "body", "expected": ["outil-suivi-marge-par-affaire"]}
+{"id": "d35", "q": "Who is our contact at the medical equipment importer and how does she like to work?", "lang": "en", "kind": "paraphrase", "expected": ["personne-sophie-delarue"]}
+{"id": "d36", "q": "Why are the dates in a Swiss ERP CSV export wrong when opened in Excel?", "lang": "en", "kind": "fact", "expected": ["piege-export-excel-dates-suisses"]}
+{"id": "d37", "q": "Stock count discrepancies look random, can we trust cycle counting data?", "lang": "en", "kind": "paraphrase", "expected": ["piege-inventaire-tournant-doublons"]}
+{"id": "d38", "q": "Should I accept a meeting date before knowing who can make the decision?", "lang": "en", "kind": "fact", "expected": ["piege-reunion-sans-decideur"]}
+{"id": "d39", "q": "The expiry date field in the ERP looks odd at ARVA, what does it really hold?", "lang": "en", "kind": "body", "expected": ["piege-sage-x3-champs-personnalises"]}
+{"id": "d40", "q": "Where do our new clients come from and when should we ask for referrals?", "lang": "en", "kind": "fact", "expected": ["prospection-recommandation"]}
+{"id": "d41", "q": "Can I upload client data to an online tool or a cloud service?", "lang": "en", "kind": "fact", "expected": ["rgpd-nlpd-donnees-client"]}
+{"id": "d42", "q": "Can I book a client meeting on Monday morning?", "lang": "en", "kind": "fact", "expected": ["rythme-hebdomadaire"]}
+{"id": "d43", "q": "Which books do we recommend to the team?", "lang": "en", "kind": "paraphrase", "expected": ["veille-ouvrages-de-reference"]}
+{"id": "d44", "q": "Who are the partners of the firm and what does each one cover?", "lang": "en", "kind": "fact", "expected": ["mirabeau-qui-nous-sommes"]}
+{"id": "d45", "q": "What is the deductible on our professional liability insurance?", "lang": "en", "kind": "fact", "expected": ["admin-assurance-rc-professionnelle"]}
+{"id": "d46", "q": "How long do field interviews last and where do they take place?", "lang": "en", "kind": "fact", "expected": ["methode-entretien-terrain"]}
+{"id": "d47", "q": "How many days were quoted and used so far on the stock-out project?", "lang": "en", "kind": "fact", "expected": ["mission-arva-ruptures-stock"]}
+{"id": "d48", "q": "Do we do IT implementation for clients?", "lang": "en", "kind": "fact", "expected": ["mirabeau-ce-qu-on-ne-fait-pas"]}
+{"id": "d49", "q": "How many decisions should a steering committee agenda carry?", "lang": "en", "kind": "fact", "expected": ["mission-comite-pilotage"]}
+{"id": "d50", "q": "What are the four steps to close a mission?", "lang": "en", "kind": "fact", "expected": ["mission-clore-proprement"]}
+{"id": "d51", "q": "Wie hoch ist unser Tagessatz und sind Reisekosten inbegriffen?", "lang": "de", "kind": "fact", "expected": ["mirabeau-tarifs-et-frais"]}
+{"id": "d52", "q": "Darf der Geschäftsführer am Diagnose-Workshop teilnehmen?", "lang": "de", "kind": "fact", "expected": ["atelier-diagnostic-90-minutes"]}
+{"id": "d53", "q": "Wie mahnen wir eine unbezahlte Rechnung?", "lang": "de", "kind": "fact", "expected": ["facturation-delai-paiement"]}
+{"id": "d54", "q": "Dürfen Kundendaten in einen Cloud-Dienst hochgeladen werden?", "lang": "de", "kind": "fact", "expected": ["rgpd-nlpd-donnees-client"]}
+{"id": "d55", "q": "Warum bieten wir keine Pauschalpreise an?", "lang": "de", "kind": "fact", "expected": ["mirabeau-devis-jamais-au-forfait"]}
+{"id": "d56", "q": "Welche Anzahlung verlangen wir von einem Neukunden?", "lang": "de", "kind": "fact", "expected": ["facturation-acompte-nouveau-client"]}
+{"id": "d57", "q": "Warum sind die Datumswerte nach dem CSV-Import in Excel falsch?", "lang": "de", "kind": "fact", "expected": ["piege-export-excel-dates-suisses"]}
+{"id": "d58", "q": "Wie viele Seiten hat der Abschlussbericht?", "lang": "de", "kind": "paraphrase", "expected": ["methode-restitution-en-une-page", "mirabeau-comment-on-ecrit", "outil-modele-de-restitution"]}
+{"id": "d59", "q": "Woher kommen unsere Kunden?", "lang": "de", "kind": "fact", "expected": ["prospection-recommandation"]}
+{"id": "d60", "q": "Welche Software benutzen wir für E-Mail und Dokumente?", "lang": "de", "kind": "fact", "expected": ["mirabeau-outils"]}
