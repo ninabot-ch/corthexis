@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 — unreleased
+## 2.0.0 — 2026-10-05
 
 CortHeXis becomes a product of its own: the memory engine of SOKKAN 3.0, usable alone.
 
@@ -48,9 +48,22 @@ CortHeXis becomes a product of its own: the memory engine of SOKKAN 3.0, usable 
 - Examples moved to `examples/agent-memory/` (file names in the convention) and the
   fictional demo corpus `examples/mirabeau-conseil/` added.
 
+### Bench
+- **Public recall bench** (`bench/`): 60 questions in French, English and German over the
+  demo corpus, `bench/demo/bench.py` to rerun it, results for four model setups, and the
+  method of the private 300-question reference bench. `corthexis eval import FILE.jsonl`
+  loads a written bank.
+
 ### Fixed
 - The "whole memory rewritten at once" warning fired on any fresh clone or backup restore:
   it now looks only at notes whose age comes from the file.
+- Recall: one word of a note's name in the message ("deploy", "mission") forced that note
+  into the context; it now takes the full name, or two segments of it as whole words.
+- Review: an Exoscale key identifier alone (the public half of the key) is no longer reported
+  as a secret; it is when its secret sits in the same note.
+- Normalize: renaming a note to the convention re-attaches the links written with its old
+  name or a slug variant of it (`[[Team Calendar]]`, `[[team_calendar]]`).
+- Migration: a note owned by another user keeps its date instead of failing the step.
 
 ## 1.x — 2026-09-16
 

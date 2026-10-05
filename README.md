@@ -19,7 +19,8 @@ which is only written once you approve it.
 - **A memory that checks itself.** Health score, findings with their remedy, history,
   daily digest to your webhook, repairs with a diff and an approval.
 - **Measured, on your notes.** A recall bench built from your own questions and sessions,
-  with every run kept and regressions flagged.
+  with every run kept and regressions flagged — and a [public bench](bench/README.md) on the
+  demo corpus that anyone can rerun.
 - **Yours.** Apache-2.0, self-hosted, no account. The notes are files; the index is
   derived from them and can be rebuilt at any time.
 
@@ -32,7 +33,7 @@ live demo on a fictional corpus: [demo.corthexis.com](https://demo.corthexis.com
 
 ## Quick start
 
-Docker with Compose v2, ~2 GB of RAM, 4 cores.
+Docker with Compose 2.20 or later, ~2 GB of RAM, 4 cores.
 
 ```bash
 git clone https://github.com/ninabot-ch/corthexis && cd corthexis
@@ -171,12 +172,30 @@ is used if its hash matches. Mirror: `CORTHEXIS_MODEL_BASE_URL`.
 checked before the switch, the old index left untouched for a rollback. See
 [docs/MIGRATION.md](docs/MIGRATION.md).
 
-## SOKKAN
+## What is where
 
-[SOKKAN](https://sokkan.ch) 3.0 embeds this engine; its memory tab is called CortHeXis.
-Everything SOKKAN does with the memory — per-turn recall in its chat and terminal sessions,
-review, repairs, bench, profile switch — is this code. The `SOKKAN_*` variable names are
-read as a fallback of the `CORTHEXIS_*` ones.
+Everything shown on [corthexis.com](https://corthexis.com) and on the
+[demo](https://demo.corthexis.com) runs from this repository.
+
+| | This repository | SOKKAN 3.0 |
+|---|---|---|
+| Engine: store, hybrid search, reranker, dates and provenance | ✓ | ✓ (same code) |
+| Recall at every turn and in sub-agents (Claude Code hook) | ✓ `corthexis hook install` | ✓ in every session it starts |
+| MCP `memory_search` / `memory_get` (stdio, HTTP + Bearer) | ✓ | ✓ |
+| Review: score, findings, history, digest, repairs with approval | ✓ | ✓ CortHeXis tab |
+| Dashboard: graph, recall, health, bench | ✓ `corthexis serve` | ✓ CortHeXis tab |
+| Recall bench, gated profile/model switch | ✓ `corthexis eval` | ✓ + Magnitude memory card |
+| Migration from 1.x / SOKKAN 2.x | ✓ `corthexis migrate` | ✓ automatic on upgrade |
+| Agent cockpit: parallel sessions, approvals, board, terminals | — | ✓ |
+
+**CortHeXis alone** if you want a memory for the agents you already run (Claude Code or
+anything that speaks MCP). **[SOKKAN](https://sokkan.ch)** if you also want the cockpit that
+runs those agents: its memory tab *is* CortHeXis, installed and wired for you. The
+`SOKKAN_*` variable names are read as a fallback of the `CORTHEXIS_*` ones.
+
+What we run ourselves that is not in this repository: our notes (see
+[About the examples](#about-the-examples)) and the 300 questions of the reference bench
+written on them (see [bench/README.md](bench/README.md)).
 
 ## Configuration
 
@@ -217,4 +236,5 @@ CORTHEXIS_TEST_PG_DSN=postgresql://cx:test@127.0.0.1:55432/postgres .venv/bin/py
 ```
 
 [SCHEMA.md](SCHEMA.md) — the note format · [docs/ENGINE.md](docs/ENGINE.md) — the engine ·
-[docs/DEMO.md](docs/DEMO.md) — a public read-only showcase · [CHANGELOG.md](CHANGELOG.md)
+[docs/DEMO.md](docs/DEMO.md) — a public read-only showcase · [bench/README.md](bench/README.md) —
+the recall benches · [CHANGELOG.md](CHANGELOG.md)

@@ -10,17 +10,20 @@ Two benches, and what each one can prove.
 description (`fact`, 41), only in its body (`body`, 8), or the question shares almost no word
 with the note (`paraphrase`, 11). Each line names the note(s) that answer it.
 
+From a running install (`./setup.sh && docker compose up -d`), with the model it serves:
+
 ```bash
-docker run -d --name cx-bench-pg -p 127.0.0.1:55432:5432 -e POSTGRES_USER=cx \
-  -e POSTGRES_PASSWORD=test pgvector/pgvector:pg16
-docker exec cx-bench-pg psql -U cx -d postgres -c "CREATE DATABASE bench"
-# point CORTHEXIS_EMBED_URLS (and CORTHEXIS_RERANK_URL) at your model servers — the ones of
-# `docker compose up` are http://127.0.0.1:8421 (embed) and :8422 (rerank) once published
-CORTHEXIS_DATABASE_URL=postgresql://cx:test@127.0.0.1:55432/bench \
-  python bench/demo/bench.py            # add --rerank to rerank the top results
+docker compose exec db createdb -U corthexis bench
+PW=$(sed -n 's/^CORTHEXIS_DB_PASSWORD=//p' .env)
+docker compose run --rm --no-deps -v "$PWD/bench:/opt/corthexis/bench:ro" \
+  -v "$PWD/examples:/opt/corthexis/examples:ro" \
+  -e CORTHEXIS_DATABASE_URL="postgresql://corthexis:${PW:-corthexis}@db:5432/bench" \
+  corthexis python bench/demo/bench.py        # add --rerank with the `rerank` profile up
 ```
 
-Use one empty database per model. On your own memory, the same bank format works with
+Outside Docker: `pip install -e .`, a Postgres with pgvector, `CORTHEXIS_DATABASE_URL` and
+`CORTHEXIS_EMBED_URLS` (and `CORTHEXIS_RERANK_URL`) pointing at your model servers, then
+`python bench/demo/bench.py`. Use one empty database per model. On your own memory, the same bank format works with
 `corthexis eval import <file.jsonl>`, then `corthexis eval run`.
 
 ### Results, 05.10.2026
@@ -35,6 +38,8 @@ Hybrid search (dense + keywords), top 10, MRR = mean of 1/rank of the first expe
 | EmbeddingGemma-300m Q8 | Qwen3-Reranker-0.6B, top 10 | **0.95** | 1.00 | **0.97** | 0.98 | 0.94 | 1.00 |
 
 Search p50 without reranker: 8 ms on this corpus; with the reranker on a GPU, about 1 s.
+The e5-base line was measured twice — model server outside Docker, then a clean
+`setup.sh` + `docker compose up` install with the command above — with identical results.
 
 **Read these numbers for what they are.** 38 short, well-written notes are an easy corpus:
 every model finds almost everything in the top 5, and the gaps between models are narrow.
