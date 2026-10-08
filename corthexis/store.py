@@ -33,9 +33,11 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
+from . import levels as _lv
+from . import scope as _scope
 from . import search as rk
 from .config import env, env_int
-from .contract import DATE_SOURCES, ChunkRecord, NoteRecord, SeenRecord
+from .contract import DATE_SOURCES, DEFAULT_PROJECT, ChunkRecord, NoteRecord, SeenRecord
 from .search import Candidate, Hit, Reranker
 
 __all__ = ["Store", "SearchConfig", "Generation", "NoteRecord", "ChunkRecord", "SeenRecord",
@@ -150,6 +152,25 @@ def _unit(vec: Sequence[float], dim: int) -> HalfVector:
 def tsvector_words(tsv: str) -> list[str]:
     """Words of a tsvector's text form ('w1' 'w2' …, no positions: array_to_tsvector)."""
     return [w.strip("'") for w in tsv.split()]
+
+
+def _project(note) -> str:
+    """Project column of a note record (fail-closed: unknown or invalid = default)."""
+    return _scope.project_of(note)
+
+
+def _level(note) -> int:
+    return _lv.of(note)
+
+
+def _scope_cond(scope: tuple[str, ...], alias: str = "", level: str = "level"
+                ) -> tuple[str, list]:
+    """SQL condition (positional %s) keeping the rows of the scope's projects whose level is
+    within the clearance of that project (3.4). ``level`` = the level expression."""
+    a = f"{alias}." if alias else ""
+    ps, cs = _scope.sql_args(scope)
+    return (f"({a}project = ANY(%s::text[]) AND {level.replace('@', a)} <= "
+            f"(%s::int[])[array_position(%s::text[], {a}project)])", [ps, cs, ps])
 
 
 def _iso(v) -> str | None:
@@ -428,7 +449,7 @@ class Store:
                     "WITH (FORMAT BINARY)") as cp:
                 cp.set_types(["int8", "int4", "text", "halfvec", "text[]"])
                 for note, chunks, vecs, toks in prepared:
-                    nid = ids[note.name]
+                    nid = ids[(_project(note), note.name)]
                     for c, v, tk in zip(chunks, vecs, toks):
                         cp.write_row((nid, int(c.idx), c.body, v, tk))
                         written += 1
@@ -445,18 +466,20 @@ class Store:
         with self.pool.connection() as con, con.transaction():
             toks = [tsvector_words(r["tsv"]) for r in con.execute(
                 f"SELECT c.tsv::text AS tsv FROM {g.table} c JOIN notes n ON n.id = c.note_id "
-                "WHERE n.name = %s", (note.name,)).fetchall()]
+                "WHERE n.name = %s AND n.project = %s", (note.name, _project(note))).fetchall()]
             self._write_notes(con, [(note, toks)])
 
     def _write_notes(self, con, items: list[tuple[NoteRecord, list[list[str]]]]
-                     ) -> dict[str, int]:
+                     ) -> dict[tuple[str, str], int]:
         """Upsert the notes rows and keep the IDF statistics (lex_df) in step.
         ``items`` = (note, keywords of each chunk); the lexical body = name + description +
         chunks (the note body when there is no chunk)."""
-        names = sorted({n.name for n, _ in items})
-        old = {r["name"]: set(r["lex_tokens"]) for r in con.execute(
-            "SELECT name, lex_tokens FROM notes WHERE name = ANY(%s) ORDER BY name FOR UPDATE",
-            (names,)).fetchall()}
+        keys = sorted({(_project(n), n.name) for n, _ in items})
+        old = {(r["project"], r["name"]): set(r["lex_tokens"]) for r in con.execute(
+            "SELECT n.project, n.name, n.lex_tokens FROM notes n JOIN unnest(%s::text[], "
+            "%s::text[]) AS k(p, nm) ON n.project = k.p AND n.name = k.nm "
+            "ORDER BY n.project, n.name FOR UPDATE OF n",
+            ([k[0] for k in keys], [k[1] for k in keys])).fetchall()}
         delta: dict[str, int] = {}
         rows = {}
         for note, chunk_toks in items:
@@ -468,7 +491,8 @@ class Store:
             else:
                 lex |= rk.tokens(note.body or "")
             lex = sorted(lex)
-            prev = old.get(note.name)
+            key = (_project(note), note.name)
+            prev = old.get(key)
             new = set(lex)
             for t in new - (prev or set()):
                 delta[t] = delta.get(t, 0) + 1
@@ -476,38 +500,46 @@ class Store:
                 delta[t] = delta.get(t, 0) - 1
             if prev is None:
                 delta[""] = delta.get("", 0) + 1
-            old[note.name] = new
+            old[key] = new
             # tokens are alphanumeric: a space-joined string is a safe ragged-array carrier
-            rows[note.name] = (note.name, note.description or "", note.type,
+            rows[key] = (note.name, note.description or "", note.type,
                                int(note.priority or 0), note.source_path, _iso(note.modified),
                                note.modified_source, note.body or "", " ".join(head),
-                               " ".join(lex))
+                               " ".join(lex), _project(note), _level(note))
         cols = list(zip(*[rows[n] for n in sorted(rows)]))
-        ids = {r["name"]: r["id"] for r in con.execute(
+        ids = {(r["project"], r["name"]): r["id"] for r in con.execute(
             "INSERT INTO notes(name, description, type, priority, source_path, modified,"
-            " modified_source, body, head_tokens, lex_tokens, updated_at)"
+            " modified_source, body, head_tokens, lex_tokens, project, level, updated_at)"
             " SELECT n, d, ty, p, sp, m, ms, b, string_to_array(h, ' '), string_to_array(l, ' '),"
-            " now() FROM unnest(%s::text[], %s::text[], %s::text[], %s::int[], %s::text[],"
-            " %s::text[], %s::text[], %s::text[], %s::text[], %s::text[])"
-            " AS x(n, d, ty, p, sp, m, ms, b, h, l)"
-            " ON CONFLICT (name) DO UPDATE SET description = excluded.description,"
+            # 3.4: a note never goes below its floor (inherited / set by a cleared human)
+            " pr, greatest(lv, coalesce((SELECT f.level FROM note_level_floor f"
+            "  WHERE f.project = pr AND f.name = n), 0)), now()"
+            " FROM unnest(%s::text[], %s::text[], %s::text[], %s::int[], %s::text[],"
+            " %s::text[], %s::text[], %s::text[], %s::text[], %s::text[], %s::text[], %s::int[])"
+            " AS x(n, d, ty, p, sp, m, ms, b, h, l, pr, lv)"
+            " ON CONFLICT (project, name) DO UPDATE SET description = excluded.description,"
             " type = excluded.type, priority = excluded.priority,"
             " source_path = excluded.source_path, modified = excluded.modified,"
             " modified_source = excluded.modified_source, body = excluded.body,"
             " head_tokens = excluded.head_tokens, lex_tokens = excluded.lex_tokens,"
-            " updated_at = now() RETURNING id, name", [list(c) for c in cols]).fetchall()}
+            # 3.4: an upsert never LOWERS a level (only Store.set_level, the cleared-human
+            # path, does): an edit of the file cannot declassify a note
+            " level = greatest(excluded.level, notes.level), updated_at = now()"
+            " RETURNING id, name, project",
+            [list(c) for c in cols]).fetchall()}
         self._apply_df(con, delta)
         return ids
 
-    def delete_note(self, name: str, generation: int | Generation | None = None) -> None:
+    def delete_note(self, name: str, generation: int | Generation | None = None, *,
+                    project: str = DEFAULT_PROJECT) -> None:
         """Delete the note's chunks in ``generation`` (all generations if None). The note
         itself (text, links, IDF stats) goes once no generation holds it any more.
         ``note_versions`` history is kept."""
         gens = [self._require_gen(generation)] if generation is not None \
             else self.list_generations()
         with self.pool.connection() as con, con.transaction():
-            row = con.execute("SELECT id FROM notes WHERE name = %s FOR UPDATE",
-                              (name,)).fetchone()
+            row = con.execute("SELECT id FROM notes WHERE name = %s AND project = %s "
+                              "FOR UPDATE", (name, project)).fetchone()
             if row is None:
                 return
             for g in gens:
@@ -521,14 +553,15 @@ class Store:
                 self._delete_note_row(con, row["id"])
 
     def _delete_note_row(self, con, note_id: int) -> None:
-        r = con.execute("DELETE FROM notes WHERE id = %s RETURNING name, lex_tokens",
+        r = con.execute("DELETE FROM notes WHERE id = %s RETURNING name, project, lex_tokens",
                         (note_id,)).fetchone()
         if r is None:
             return
         delta = {t: -1 for t in r["lex_tokens"]}
         delta[""] = -1
         self._apply_df(con, delta)
-        con.execute("DELETE FROM links WHERE src = %s", (r["name"],))
+        con.execute("DELETE FROM links WHERE src = %s AND project = %s",
+                    (r["name"], r["project"]))
 
     def _purge_orphan_notes(self, con) -> None:
         for r in con.execute("SELECT id FROM notes n WHERE NOT EXISTS "
@@ -549,26 +582,62 @@ class Store:
         if neg:
             con.execute("DELETE FROM lex_df WHERE token = ANY(%s) AND df <= 0", (neg,))
 
-    def get_note(self, name: str) -> NoteRecord | None:
+    _NOTE_COLS = ("name, description, type, priority, source_path, modified, "
+                  "modified_source, body, project, level")
+
+    def get_note(self, name: str, project: str = DEFAULT_PROJECT) -> NoteRecord | None:
+        """The note ``name`` of ``project`` (names are unique per project, 3.2)."""
         with self.pool.connection() as con:
-            r = con.execute(
-                "SELECT name, description, type, priority, source_path, modified, "
-                "modified_source, body FROM notes WHERE name = %s", (name,)).fetchone()
+            r = con.execute(f"SELECT {self._NOTE_COLS} FROM notes WHERE name = %s AND "
+                            "project = %s", (name, project)).fetchone()
         return NoteRecord(**r) if r else None
 
-    def find_note_by_path(self, stem: str) -> str | None:
-        """Note name whose file is ``<stem>.md`` (or ``<stem with _>.md``)."""
+    def resolve_note(self, name: str, projects: Iterable[str] | None = None
+                     ) -> NoteRecord | None:
+        """The note ``name`` as a caller with this project scope sees it: a note of its own
+        project wins over the same name in ``shared``; ``None`` scope = the default
+        project first, then any (tools, standalone CortHeXis)."""
+        scope = _scope.normalize(projects)
+        if scope == ():
+            return None
+        sql = f"SELECT {self._NOTE_COLS} FROM notes WHERE name = %s"
+        args: list = [name]
+        if scope is not None:
+            cond, cargs = _scope_cond(scope, level="@level")
+            sql += " AND " + cond
+            args += cargs
+        sql += (" ORDER BY (project = 'shared'), (project <> %s), project LIMIT 1")
+        args.append(DEFAULT_PROJECT)
+        with self.pool.connection() as con:
+            r = con.execute(sql, args).fetchone()
+        return NoteRecord(**r) if r else None
+
+    def for_project(self, project: str) -> "ProjectView":
+        """This store seen from ONE project: every name-keyed call is about that project's
+        notes (the indexer of a project's directory uses it)."""
+        return ProjectView(self, project)
+
+    def find_note_by_path(self, stem: str, projects: Iterable[str] | None = None) -> str | None:
+        """Note name whose file is ``<stem>.md`` (or ``<stem with _>.md``), in the scope."""
         stem = stem.removesuffix(".md")
+        scope = _scope.normalize(projects)
+        if scope == ():
+            return None
+        extra, args = ("", [])
+        if scope is not None:
+            cond, args = _scope_cond(scope, level="@level")
+            extra = " AND " + cond
         with self.pool.connection() as con:
             for like in (f"%/{stem}.md", f"%/{stem.replace('-', '_')}.md"):
-                r = con.execute("SELECT name FROM notes WHERE source_path LIKE %s LIMIT 1",
-                                (like,)).fetchone()
+                r = con.execute("SELECT name FROM notes WHERE source_path LIKE %s" + extra
+                                + " ORDER BY (project = 'shared') LIMIT 1",
+                                [like, *args]).fetchone()
                 if r:
                     return r["name"]
         return None
 
-    def get_chunks(self, name: str, generation: int | Generation | None = None
-                   ) -> list[ChunkRecord]:
+    def get_chunks(self, name: str, generation: int | Generation | None = None, *,
+                   project: str = DEFAULT_PROJECT) -> list[ChunkRecord]:
         """Chunks of a note in ``generation`` (active by default), in order. Embeddings come
         back unit-normalised and rounded to half precision."""
         g = self._require_gen(generation)
@@ -576,41 +645,48 @@ class Store:
             return [ChunkRecord(r["idx"], r["body"], r["embedding"].to_list())
                     for r in con.execute(
                         f"SELECT c.idx, c.body, c.embedding FROM {g.table} c "
-                        "JOIN notes n ON n.id = c.note_id WHERE n.name = %s ORDER BY c.idx",
-                        (name,)).fetchall()]
+                        "JOIN notes n ON n.id = c.note_id WHERE n.name = %s AND n.project = %s"
+                        " ORDER BY c.idx", (name, project)).fetchall()]
 
-    def note_names(self, generation: int | Generation | None = None) -> set[str]:
-        """Notes that have chunks in ``generation``; every known note when None."""
+    def note_names(self, generation: int | Generation | None = None, *,
+                   project: str | None = None) -> set[str]:
+        """Notes that have chunks in ``generation``; every known note when None.
+        ``project`` restricts to the notes of one project (3.2: an indexer pass over one
+        project's directory must never prune the notes of another)."""
+        where, args = ("WHERE n.project = %s", (project,)) if project is not None else ("", ())
         with self.pool.connection() as con:
             if generation is None:
-                return {r["name"] for r in con.execute("SELECT name FROM notes")}
+                return {r["name"] for r in con.execute(f"SELECT name FROM notes n {where}",
+                                                       args)}
             g = self._require_gen(generation)
+            cond = f"{where} AND" if where else "WHERE"
             return {r["name"] for r in con.execute(
-                f"SELECT n.name FROM notes n WHERE EXISTS "
-                f"(SELECT 1 FROM {g.table} c WHERE c.note_id = n.id)")}
+                f"SELECT n.name FROM notes n {cond} EXISTS "
+                f"(SELECT 1 FROM {g.table} c WHERE c.note_id = n.id)", args)}
 
     def generations(self) -> list[Generation]:
         return self.list_generations()
 
     # ------------------------------------------------------------------ dates (truth)
     # One row of note_versions = one SeenRecord. Semantics = memstore.InMemoryStore.
-    def note_seen(self, name: str) -> SeenRecord | None:
-        """Latest version recorded under this name."""
+    def note_seen(self, name: str, project: str = DEFAULT_PROJECT) -> SeenRecord | None:
+        """Latest version recorded under this name (in this project)."""
         with self.pool.connection() as con:
             return _seen(con.execute(
-                f"SELECT {_SEEN_COLS} FROM note_versions WHERE note_name = %s "
-                "ORDER BY id DESC LIMIT 1", (name,)).fetchone())
+                f"SELECT {_SEEN_COLS} FROM note_versions WHERE note_name = %s AND project = %s"
+                " ORDER BY id DESC LIMIT 1", (name, project)).fetchone())
 
-    def record_seen(self, rec: SeenRecord) -> None:
+    def record_seen(self, rec: SeenRecord, project: str = DEFAULT_PROJECT) -> None:
         """Append a version when (content_hash, description) changed, else refresh the
         latest one (first_seen, seeded, date_source, body)."""
         if rec.date_source not in DATE_SOURCES:
             raise StoreError(f"unknown date_source {rec.date_source!r} ({', '.join(DATE_SOURCES)})")
         with self.pool.connection() as con, con.transaction():
-            con.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("note_versions:" + rec.name,))
+            con.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",
+                        (f"note_versions:{project}/{rec.name}",))
             last = con.execute(
                 "SELECT id, content_hash, description FROM note_versions WHERE note_name = %s "
-                "ORDER BY id DESC LIMIT 1", (rec.name,)).fetchone()
+                "AND project = %s ORDER BY id DESC LIMIT 1", (rec.name, project)).fetchone()
             if last and (last["content_hash"], last["description"]) == (rec.content_hash,
                                                                          rec.description or ""):
                 con.execute(
@@ -621,54 +697,63 @@ class Store:
                 return
             con.execute(
                 "INSERT INTO note_versions(note_name, content_hash, first_seen, seeded, "
-                "date_source, description, body, seen_at, extra) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                "date_source, description, body, seen_at, extra, project) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (rec.name, rec.content_hash, _iso(rec.first_seen), bool(rec.seeded),
                  rec.date_source, rec.description or "", rec.body or "",
-                 _iso(rec.seen_at) or "", Jsonb(rec.extra or {})))
+                 _iso(rec.seen_at) or "", Jsonb(rec.extra or {}), project))
 
-    def find_seen(self, content_hashes: Sequence[str]) -> SeenRecord | None:
-        """Oldest version, under any name, carrying one of these hashes (a renamed note
-        inherits the date of its previous name)."""
+    def find_seen(self, content_hashes: Sequence[str],
+                  project: str = DEFAULT_PROJECT) -> SeenRecord | None:
+        """Oldest version, under any name OF THE SAME PROJECT, carrying one of these hashes
+        (a renamed note inherits the date of its previous name)."""
         with self.pool.connection() as con:
             return _seen(con.execute(
                 f"SELECT {_SEEN_COLS} FROM note_versions WHERE content_hash = ANY(%s) "
-                "ORDER BY first_seen::timestamptz, id LIMIT 1",
-                (list(content_hashes),)).fetchone())
+                "AND project = %s ORDER BY first_seen::timestamptz, id LIMIT 1",
+                (list(content_hashes), project)).fetchone())
 
-    def seen_count(self) -> int:
-        """Number of notes with a recorded history (0 = bootstrap pass)."""
+    def seen_count(self, project: str | None = None) -> int:
+        """Number of notes with a recorded history (0 = bootstrap pass), of one project
+        when given (a new project's first pass is its own bootstrap)."""
+        where, args = ("", ()) if project is None else (" WHERE project = %s", (project,))
         with self.pool.connection() as con:
             return con.execute("SELECT count(DISTINCT note_name) AS n FROM note_versions"
-                               ).fetchone()["n"]
+                               + where, args).fetchone()["n"]
 
-    def note_versions(self, name: str, limit: int = 20) -> list[SeenRecord]:
+    def note_versions(self, name: str, limit: int = 20,
+                      project: str = DEFAULT_PROJECT) -> list[SeenRecord]:
         """The last ``limit`` versions of a note, oldest first."""
         with self.pool.connection() as con:
             rows = con.execute(
-                f"SELECT {_SEEN_COLS} FROM note_versions WHERE note_name = %s "
-                "ORDER BY id DESC LIMIT %s", (name, int(limit))).fetchall()
+                f"SELECT {_SEEN_COLS} FROM note_versions WHERE note_name = %s AND project = %s "
+                "ORDER BY id DESC LIMIT %s", (name, project, int(limit))).fetchall()
         return [_seen(r) for r in reversed(rows)]
 
     # ------------------------------------------------------------------ links / recall
-    def set_links(self, src: str, dsts: Iterable[str]) -> None:
+    def set_links(self, src: str, dsts: Iterable[str], project: str = DEFAULT_PROJECT) -> None:
         dsts = sorted({d for d in dsts if d and d != src})
         with self.pool.connection() as con, con.transaction():
-            con.execute("DELETE FROM links WHERE src = %s", (src,))
+            con.execute("DELETE FROM links WHERE src = %s AND project = %s", (src, project))
             if dsts:
-                con.execute("INSERT INTO links(src, dst) SELECT %s, unnest(%s::text[])",
-                            (src, dsts))
+                con.execute("INSERT INTO links(project, src, dst) "
+                            "SELECT %s, %s, unnest(%s::text[])", (project, src, dsts))
 
-    def links(self, name: str) -> dict:
-        """Outgoing [[links]] and backlinks of a note, with descriptions."""
+    def links(self, name: str, project: str = DEFAULT_PROJECT) -> dict:
+        """Outgoing [[links]] and backlinks of a note, with descriptions. A link resolves
+        in the note's own project first, then in ``shared``; backlinks come from the same
+        project (a note of another project never shows up here)."""
         with self.pool.connection() as con:
             out = con.execute(
                 "SELECT l.dst AS name, coalesce(n.description, '') AS description, "
-                "n.id IS NOT NULL AS exists FROM links l LEFT JOIN notes n ON n.name = l.dst "
-                "WHERE l.src = %s ORDER BY l.dst", (name,)).fetchall()
+                "n.id IS NOT NULL AS exists FROM links l LEFT JOIN LATERAL ("
+                " SELECT id, description FROM notes WHERE name = l.dst AND project IN "
+                " (l.project, 'shared') ORDER BY (project = 'shared') LIMIT 1) n ON true "
+                "WHERE l.src = %s AND l.project = %s ORDER BY l.dst", (name, project)).fetchall()
             back = con.execute(
                 "SELECT l.src AS name, n.description FROM links l JOIN notes n "
-                "ON n.name = l.src WHERE l.dst = %s ORDER BY l.src", (name,)).fetchall()
+                "ON n.name = l.src AND n.project = l.project WHERE l.dst = %s AND "
+                "l.project = %s ORDER BY l.src", (name, project)).fetchall()
         return {"note": name, "links": out, "backlinks": back}
 
     def log_recall(self, channel: str, hits: Sequence[Hit], *, session_id: str | None = None,
@@ -680,13 +765,125 @@ class Store:
             with con.cursor() as cur:
                 cur.executemany(
                     "INSERT INTO recall_log(channel, session_id, agent_id, query, note_name,"
-                    " rank, score, rerank, content_hash, generation_id)"
+                    " rank, score, rerank, content_hash, generation_id, project, level)"
                     " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,"
                     " (SELECT content_hash FROM note_versions WHERE note_name = %s"
-                    "  ORDER BY id DESC LIMIT 1), %s)",
+                    "  AND project = %s ORDER BY id DESC LIMIT 1), %s, %s, %s)",
                     [(channel, session_id, agent_id, query, h.note_name, i + 1, h.score,
-                      h.rerank, h.note_name, h.generation) for i, h in enumerate(hits)])
+                      h.rerank, h.note_name, _scope.project_of(h), h.generation,
+                      _scope.project_of(h), self._hit_level(con, h))
+                     for i, h in enumerate(hits)])
+                # 3.4 audited recall: every injection is also an access (who = the
+                # session's owner, resolved by the app that reads the log)
+                self._insert_access(cur, channel, None, session_id, query, hits, con)
         return len(hits)
+
+    # ------------------------------------------------------------------ 3.4 audit / levels
+    def _hit_level(self, con, h) -> int:
+        """Level of a hit: the one it carries, else the note's current level."""
+        if getattr(h, "level", None) is not None:
+            return _lv.clamp(h.level)
+        r = con.execute("SELECT level FROM notes WHERE name = %s AND project = %s",
+                        (h.note_name, _scope.project_of(h))).fetchone()
+        return int(r["level"]) if r else _lv.DEFAULT
+
+    def _insert_access(self, cur, via, actor, session_id, query, hits, con) -> None:
+        cur.executemany(
+            "INSERT INTO note_access(via, actor, session_id, project, note_name, level, query)"
+            " VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            [(via, actor, session_id, _scope.project_of(h), h.note_name,
+              self._hit_level(con, h), (query or "")[:500] or None) for h in hits])
+
+    def log_access(self, via: str, notes: Sequence, *, actor: str | None = None,
+                   session_id: str | None = None, query: str | None = None) -> int:
+        """Record that ``actor`` obtained these notes (hits, NoteRecords or dicts with
+        note_name/name + project + level) through ``via`` (mcp, cockpit, nina, brief,
+        teams…). The audited recall of 3.4: who got which note, by which path."""
+        rows = []
+        for n in notes or ():
+            name = (n.get("note_name") or n.get("name")) if isinstance(n, dict) else (
+                getattr(n, "note_name", None) or getattr(n, "name", None))
+            if not name:
+                continue
+            rows.append(Hit(note_name=name, score=0.0, cosine=None, lexical=0.0, rerank=None,
+                            snippet="", age_days=None, date_source="",
+                            project=_scope.project_of(n),
+                            level=(_lv.of(n) if (n.get("level") if isinstance(n, dict)
+                                                 else getattr(n, "level", None)) is not None
+                                   else None)))
+        if not rows:
+            return 0
+        with self.pool.connection() as con, con.transaction():
+            with con.cursor() as cur:
+                self._insert_access(cur, via, actor, session_id, query, rows, con)
+        return len(rows)
+
+    def access_log(self, *, projects: Iterable[str] | None = None, actor: str | None = None,
+                   session_id: str | None = None, note: str | None = None,
+                   since: datetime.datetime | None = None, limit: int = 500) -> list[dict]:
+        """The audited recall, newest first: who obtained which note through which path."""
+        where, args = [], []
+        if projects is not None:
+            where.append("project = ANY(%s)")
+            args.append(sorted(set(projects)))
+        for col, v in (("actor", actor), ("session_id", session_id), ("note_name", note)):
+            if v:
+                where.append(f"{col} = %s")
+                args.append(v)
+        if since is not None:
+            where.append("at >= %s")
+            args.append(since)
+        sql = ("SELECT id, at, via, actor, session_id, project, note_name, level, query"
+               " FROM note_access" + (" WHERE " + " AND ".join(where) if where else "")
+               + " ORDER BY id DESC LIMIT %s")
+        with self.pool.connection() as con:
+            rows = con.execute(sql, (*args, max(1, min(int(limit), 100000)))).fetchall()
+        for r in rows:
+            r["at"] = _iso(r["at"])
+        return rows
+
+    def session_level(self, session_id: str) -> int | None:
+        """Highest level a session has obtained (None = nothing classified obtained): what
+        it writes or hands back inherits it (3.4)."""
+        if not session_id:
+            return None
+        with self.pool.connection() as con:
+            r = con.execute("SELECT max(level) AS m FROM note_access WHERE session_id = %s",
+                            (session_id,)).fetchone()
+        return None if r is None or r["m"] is None else int(r["m"])
+
+    def note_level(self, name: str, project: str = DEFAULT_PROJECT) -> int | None:
+        with self.pool.connection() as con:
+            r = con.execute("SELECT level FROM notes WHERE name = %s AND project = %s",
+                            (name, project)).fetchone()
+        return None if r is None else int(r["level"])
+
+    def levels(self, project: str) -> dict[str, int]:
+        """{note name: level} of one project (graph / file views of the cockpit)."""
+        with self.pool.connection() as con:
+            return {r["name"]: int(r["level"]) for r in con.execute(
+                "SELECT name, level FROM notes WHERE project = %s", (project,)).fetchall()}
+
+    def level_floor(self, name: str, project: str = DEFAULT_PROJECT) -> int | None:
+        with self.pool.connection() as con:
+            r = con.execute("SELECT level FROM note_level_floor WHERE name = %s AND "
+                            "project = %s", (name, project)).fetchone()
+        return None if r is None else int(r["level"])
+
+    def set_level(self, name: str, level: int, *, project: str = DEFAULT_PROJECT,
+                  by: str = "", reason: str = "") -> None:
+        """Set a note's level AND its floor (what the file can no longer go below). Only the
+        app's declassification path (a cleared human, journaled) and the derived-content
+        writers call it; an edit of the file alone never lowers a level."""
+        level = _lv.clamp(level)
+        with self.pool.connection() as con, con.transaction():
+            con.execute(
+                "INSERT INTO note_level_floor(project, name, level, reason, set_by)"
+                " VALUES (%s,%s,%s,%s,%s) ON CONFLICT (project, name) DO UPDATE SET"
+                " level = excluded.level, reason = excluded.reason, set_by = excluded.set_by,"
+                " set_at = now()", (project, name, level, reason[:500], by[:200]))
+            con.execute("UPDATE notes SET level = %s WHERE name = %s AND project = %s",
+                        (level, name, project))
 
     def recalled_notes(self, session_id: str, *, agent_id: str | None = None,
                        channels: Sequence[str] = ("prompt", "spawn")) -> set[str]:
@@ -701,14 +898,20 @@ class Store:
                 (session_id, agent_id, list(channels))).fetchall()
         return {r["note_name"] for r in rows}
 
-    def existing_names(self, names: Iterable[str]) -> set[str]:
-        """The subset of ``names`` that are notes of the store."""
+    def existing_names(self, names: Iterable[str], *,
+                       projects: Iterable[str] | None = None) -> set[str]:
+        """The subset of ``names`` that are notes of the store (of the ``projects`` scope
+        when given: a note of another project "does not exist" for that caller)."""
         names = sorted({n for n in names if n})
-        if not names:
+        scope = _scope.normalize(projects)
+        if not names or scope == ():
             return set()
+        sql, args = "SELECT name FROM notes WHERE name = ANY(%s)", [names]
+        if scope is not None:
+            cond, cargs = _scope_cond(scope, level="@level")
+            sql, args = sql + " AND " + cond, [names, *cargs]
         with self.pool.connection() as con:
-            return {r["name"] for r in con.execute(
-                "SELECT name FROM notes WHERE name = ANY(%s)", (names,)).fetchall()}
+            return {r["name"] for r in con.execute(sql, args).fetchall()}
 
     def log_recall_turn(self, channel: str, *, session_id: str | None = None,
                         agent_id: str | None = None, query: str | None = None,
@@ -728,9 +931,20 @@ class Store:
                  profile, generation))
 
     def recall_log(self, *, session_id: str | None = None, note: str | None = None,
-                   limit: int = 200) -> list[dict]:
-        """Latest injected notes, newest first (read API of the UI)."""
+                   limit: int = 200, projects: Iterable[str] | None = None) -> list[dict]:
+        """Latest injected notes, newest first (read API of the UI). ``projects``: only
+        the injections of notes of these projects (NULL project = rows before 3.2 =
+        default)."""
         where, args = [], []
+        scope = _scope.normalize(projects)
+        if scope == ():
+            return []
+        if scope is not None:
+            ps, cs = _scope.sql_args(scope)
+            where.append("coalesce(project, 'default') = ANY(%s::text[]) AND coalesce(level, 2)"
+                         " <= (%s::int[])[array_position(%s::text[], coalesce(project,"
+                         " 'default'))]")
+            args += [ps, cs, ps]
         if session_id:
             where.append("session_id = %s")
             args.append(session_id)
@@ -738,7 +952,8 @@ class Store:
             where.append("note_name = %s")
             args.append(note)
         sql = ("SELECT id, at, channel, session_id, agent_id, query, note_name, rank, score,"
-               " rerank, content_hash, generation_id FROM recall_log"
+               " rerank, content_hash, generation_id, coalesce(project, 'default') AS project,"
+               " coalesce(level, 2) AS level FROM recall_log"
                + (" WHERE " + " AND ".join(where) if where else "")
                + " ORDER BY id DESC LIMIT %s")
         with self.pool.connection() as con:
@@ -771,9 +986,19 @@ class Store:
             out.append(r)
         return {"since_days": since.days, "by_channel": out}
 
-    def list_notes(self) -> list[dict]:
-        """Every note with its chunk count (active generation), links and backlinks."""
+    def list_notes(self, projects: Iterable[str] | None = None) -> list[dict]:
+        """Every note with its chunk count (active generation), links and backlinks — of
+        the ``projects`` scope only when given (3.2)."""
+        scope = _scope.normalize(projects)
+        if scope == ():
+            return []
         g = self.active_generation()
+        where, args = ("", [])
+        lwhere, largs = ("", [])
+        if scope is not None:
+            cond, args = _scope_cond(scope, level="@level")
+            where = " WHERE " + cond
+            lwhere, largs = " WHERE project = ANY(%s)", [list(_scope.projects_of(scope))]
         with self.pool.connection() as con:
             counts = {}
             if g is not None:
@@ -781,20 +1006,27 @@ class Store:
                     f"SELECT note_id, count(*) AS n FROM {g.table} GROUP BY note_id")}
             rows = con.execute(
                 "SELECT id, name, description, type, priority, source_path, modified,"
-                " modified_source FROM notes ORDER BY name").fetchall()
-            links = con.execute("SELECT src, dst FROM links ORDER BY dst").fetchall()
-        out_l: dict[str, list[str]] = {}
-        back: dict[str, set[str]] = {}
+                " modified_source, project, level FROM notes" + where
+                + " ORDER BY name, project", args).fetchall()
+            links = con.execute("SELECT project, src, dst FROM links" + lwhere
+                                + " ORDER BY dst", largs).fetchall()
+        out_l: dict[tuple, list[str]] = {}
+        back: dict[tuple, set[str]] = {}
+        seen = {(r["project"], r["name"]) for r in rows}
         for r in links:
-            out_l.setdefault(r["src"], []).append(r["dst"])
-            back.setdefault(r["dst"], set()).add(r["src"])
+            if scope is not None and (r["project"], r["src"]) not in seen:
+                continue          # 3.4: a link FROM a note above the clearance is not shown
+            out_l.setdefault((r["project"], r["src"]), []).append(r["dst"])
+            back.setdefault((r["project"], r["dst"]), set()).add(r["src"])
         return [{"name": r["name"], "description": r["description"], "type": r["type"],
+                 "project": r["project"], "level": _lv.ident(r["level"]),
                  "modified": r["modified"], "date_source": r["modified_source"],
                  "mtime": (_to_dt(r["modified"]).timestamp() if _to_dt(r["modified"])
                            else None),
                  "path": (r["source_path"] or "").rsplit("/", 1)[-1],
                  "priority": bool(r["priority"]), "chunks": counts.get(r["id"], 0),
-                 "links": out_l.get(r["name"], []), "backlinks": sorted(back.get(r["name"], ()))}
+                 "links": out_l.get((r["project"], r["name"]), []),
+                 "backlinks": sorted(back.get((r["project"], r["name"]), ()))}
                 for r in rows]
 
     def stats(self) -> dict:
@@ -810,7 +1042,8 @@ class Store:
     # ------------------------------------------------------------------ search
     def search(self, query_vec: Sequence[float] | None, query_text: str, k: int = 8, *,
                generation: int | Generation | None = None, rerank: Reranker | None = None,
-               config: SearchConfig | None = None, **overrides) -> list[Hit]:
+               config: SearchConfig | None = None,
+               projects: Iterable[str] | None = None, **overrides) -> list[Hit]:
         """Two-stage search. ``query_vec`` None = lexical-only (embedding backend down):
         results then carry ``degraded``. Keyword overrides patch ``config`` for this call
         (e.g. ``fusion="rrf"``, ``lexical_weight=0.5``).
@@ -820,7 +1053,13 @@ class Store:
         every note when the generation is small (``exact_max_chunks``); each candidate is
         re-scored EXACTLY (best chunk cosine, IDF head/body lexical score).
         Stage 2 (Python): blend or RRF, priority boost, reranker on the top ``rerank_top``.
+
+        ``projects`` (3.2): only the notes of these projects are candidates, at every stage
+        (dense, lexical, final rows); ``None`` = every note, an empty scope = no result.
         """
+        scope = _scope.normalize(projects)
+        if scope == ():
+            return []
         cfg = config or self.config
         if overrides:
             cfg = SearchConfig(**{**cfg.__dict__, **overrides})
@@ -839,14 +1078,18 @@ class Store:
                   "nd": int(cfg.dense_candidates), "nl": int(cfg.lexical_candidates),
                   "cap_abs": 2**31 - 1 if exact else int(cfg.lexical_filter_min_df),
                   "cap_rel": cfg.lexical_filter_df,
-                  "cap_fallback": cfg.lexical_fallback_max_df if qv is not None else 2**31 - 1}
+                  "cap_fallback": cfg.lexical_fallback_max_df if qv is not None else 2**31 - 1,
+                  "proj": _scope.sql_args(scope)[0] if scope is not None else None,
+                  "cap": _scope.sql_args(scope)[1] if scope is not None else None}
+        scoped = scope is not None
         with self.pool.connection() as con:
             if qv is not None:
                 if not exact:
                     self._set_ef_search(con, max(cfg.ef_search, cfg.dense_candidates))
-                rows = con.execute(self._dense_sql(g, exact), params).fetchall()
+                    self._set_iterative_scan(con, scoped)
+                rows = con.execute(self._dense_sql(g, exact, scoped), params).fetchall()
             else:
-                rows = con.execute(self._lexical_only_sql(g, exact), params).fetchall()
+                rows = con.execute(self._lexical_only_sql(g, exact, scoped), params).fetchall()
         cands, lex = [], {}
         for r in rows:
             lex[r["name"]] = r["lex"]
@@ -854,16 +1097,19 @@ class Store:
                 note_name=r["name"], description=r["description"], best_chunk=r["body"],
                 cosine=r.get("cos"), chunk_overlap=r.get("ov") or 0.0, priority=r["priority"],
                 modified=r["modified"], modified_source=r["modified_source"],
-                source_path=r["source_path"], chunk_idx=r["idx"]))
+                source_path=r["source_path"], chunk_idx=r["idx"], project=r.get("project"),
+                level=r.get("level")))
         degraded = None if qv is not None else (
             "embedding unavailable: lexical-only scoring, degraded recall (no cross-lingual)")
         lw = cfg.lexical_weight if cfg.lexical_weight is not None \
             else g.effective_lexical_weight
-        return rk.rank(
+        hits = rk.rank(
             query_text, cands, weights={}, k=k, lexical_weight=lw,
             head_share=cfg.head_share, fusion=cfg.fusion, rrf_k=cfg.rrf_k,
             priority_boost=cfg.priority_boost, rerank=rerank, rerank_top=cfg.rerank_top,
             generation=g.id, degraded=degraded, lexical=lex)
+        # the SQL already restricts every stage; this keeps the rule true by construction
+        return _scope.filter_hits(hits, scope)
 
     def _active_cached(self) -> Generation:
         """Active generation, cached ``ACTIVE_TTL`` seconds (one round trip less per search;
@@ -875,6 +1121,36 @@ class Store:
         g = self._require_gen(None)
         self._active = (now, g)
         return g
+
+    _iterative: bool | None = None
+
+    def _set_iterative_scan(self, con, on: bool) -> None:
+        """A project-scoped HNSW probe filters the nearest chunks: with pgvector >= 0.8 the
+        index scan goes on until it has enough rows of the scope (``relaxed_order``); on an
+        older pgvector the scope still holds (filter + final check), with fewer dense
+        candidates when the other projects dominate the neighbourhood."""
+        if Store._iterative is None:
+            try:
+                v = con.execute("SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+                                ).fetchone()["extversion"]
+                Store._iterative = tuple(int(x) for x in v.split(".")[:2]) >= (0, 8)
+            except Exception:  # noqa: BLE001
+                Store._iterative = False
+        if not Store._iterative:
+            return
+        # session level on a pooled connection: switched back off for an unscoped search,
+        # so a search without a scope runs exactly as before 3.2
+        state = getattr(self, "_iter_state", None)
+        if state is None:
+            state = self._iter_state = {}
+        prev = state.get(id(con))
+        if prev is not None and prev[0] is con and prev[1] == on:
+            return
+        if prev is None and not on:
+            state[id(con)] = (con, on)
+            return
+        con.execute(f"SET hnsw.iterative_scan = {'relaxed_order' if on else 'off'}")
+        state[id(con)] = (con, on)
 
     def _set_ef_search(self, con, ef: int) -> None:
         if self._ef.get(id(con)) != (con, ef):
@@ -910,39 +1186,51 @@ class Store:
 
     _HEAD = "coalesce((SELECT sum(q.w) FROM q WHERE q.t = ANY(n.head_tokens)), 0)"
 
-    def _lexc_cte(self, limit: bool) -> str:
+    # 3.4: the scope is (project, clearance) pairs — a note above its project's clearance
+    # is not a candidate either, at any stage
+    _IN_SCOPE = ("{a}project = ANY(%(proj)s::text[]) AND {a}level <= "
+                 "(%(cap)s::int[])[array_position(%(proj)s::text[], {a}project)]")
+    _SCOPE_NOTES = "SELECT id FROM notes WHERE " + _IN_SCOPE.format(a="")
+
+    def _lexc_cte(self, limit: bool, scoped: bool = False) -> str:
         """Lexical candidates: best notes on the picked words (body + head)."""
-        return (self._body_lex_cte("lexp", "pick") + ", "
+        restrict = "WHERE " + self._IN_SCOPE.format(a="n.") if scoped else ""
+        return (self._body_lex_cte("lexp", "pick", restrict) + ", "
                 f"lexc AS (SELECT n.id AS note_id FROM lexp JOIN notes n ON n.id = lexp.id "
                 f"ORDER BY (1 - %(hs)s) * lexp.s + %(hs)s * {self._HEAD} DESC, n.name"
                 + (" LIMIT %(nl)s)" if limit else ")"))
 
     _META = ("n.name, n.description, n.priority, n.modified, n.modified_source, "
-             "n.source_path")
+             "n.source_path, n.project, n.level")
 
-    def _final(self, g: Generation, best_select: str) -> str:
+    def _final(self, g: Generation, best_select: str, scoped: bool = False) -> str:
         # LATERAL: one index lookup per candidate note instead of a hash join that would
-        # scan the whole notes table
+        # scan the whole notes table. With a project scope, a row of another project is
+        # dropped HERE whatever the stages above let through (the definitive check).
+        guard = " AND " + self._IN_SCOPE.format(a="nn.") if scoped else ""
         return (f"best AS ({best_select}) "
                 f"SELECT b.*, n.* FROM best b, LATERAL (SELECT {self._META.replace('n.', 'nn.')}, "
                 f"((1 - %(hs)s) * coalesce((SELECT lb.s FROM lexb lb WHERE lb.id = nn.id), 0)"
                 f" + %(hs)s * {self._HEAD.replace('n.head_tokens', 'nn.head_tokens')}) "
-                f"/ (SELECT v FROM tot) AS lex FROM notes nn WHERE nn.id = b.note_id) n")
+                f"/ (SELECT v FROM tot) AS lex FROM notes nn WHERE nn.id = b.note_id{guard}) n")
 
-    def _dense_sql(self, g: Generation, exact: bool) -> str:
+    def _dense_sql(self, g: Generation, exact: bool, scoped: bool = False) -> str:
+        in_scope = f"note_id IN ({self._SCOPE_NOTES})" if scoped else ""
         if exact:
+            where = f"WHERE c.{in_scope} " if scoped else ""
             best = ("SELECT DISTINCT ON (c.note_id) c.note_id, c.idx, c.body, "
-                    f"-(c.embedding <#> %(qv)s::halfvec) AS cos FROM {g.table} c "
+                    f"-(c.embedding <#> %(qv)s::halfvec) AS cos FROM {g.table} c {where}"
                     "ORDER BY c.note_id, c.embedding <#> %(qv)s::halfvec, c.idx")
             return (f"WITH {self._Q_CTES}, {self._body_lex_cte('lexb', 'q')}, "
-                    + self._final(g, best))
+                    + self._final(g, best, scoped))
         # A note found by HNSW keeps its best chunk among the HNSW hits (with an exact
         # kNN that IS its best chunk); only the notes found by the lexical side alone have
         # all their chunks scored. Saves ~10 heap rows per dense candidate.
         dist = f"(embedding::halfvec({g.dim})) <#> %(qv)s::halfvec({g.dim})"
-        return (f"WITH {self._Q_CTES}, {self._lexc_cte(True)}, "
+        dwhere = f"WHERE {in_scope} " if scoped else ""
+        return (f"WITH {self._Q_CTES}, {self._lexc_cte(True, scoped)}, "
                 f"dense AS (SELECT note_id, idx, body, -({dist}) AS cos FROM {g.table} "
-                f"ORDER BY {dist} LIMIT %(nd)s), "
+                f"{dwhere}ORDER BY {dist} LIMIT %(nd)s), "
                 "lexonly AS (SELECT note_id FROM lexc EXCEPT SELECT note_id FROM dense), "
                 "cand AS (SELECT note_id FROM dense UNION SELECT note_id FROM lexonly), "
                 "rows AS (SELECT * FROM dense UNION ALL "
@@ -950,9 +1238,9 @@ class Store:
                 f"FROM {g.table} c WHERE c.note_id IN (SELECT note_id FROM lexonly)), "
                 + self._body_lex_cte("lexb", "q", "WHERE n.id IN (SELECT note_id FROM cand)")
                 + ", " + self._final(g, "SELECT DISTINCT ON (note_id) * FROM rows "
-                                        "ORDER BY note_id, cos DESC, idx"))
+                                        "ORDER BY note_id, cos DESC, idx", scoped))
 
-    def _lexical_only_sql(self, g: Generation, exact: bool) -> str:
+    def _lexical_only_sql(self, g: Generation, exact: bool, scoped: bool = False) -> str:
         """Embedding down: candidates by lexical score only; the snippet is the chunk with
         the largest share of the query words (``ov``)."""
         best = ("SELECT DISTINCT ON (c.note_id) c.note_id, c.idx, c.body, "
@@ -961,6 +1249,55 @@ class Store:
                 " / greatest(cardinality(%(qtok)s::text[]), 1) AS ov "
                 f"FROM {g.table} c WHERE c.note_id IN (SELECT note_id FROM lexc) "
                 "ORDER BY c.note_id, ov DESC, c.idx")
-        return (f"WITH {self._Q_CTES}, {self._lexc_cte(not exact)}, "
+        return (f"WITH {self._Q_CTES}, {self._lexc_cte(not exact, scoped)}, "
                 + self._body_lex_cte("lexb", "q", "WHERE n.id IN (SELECT note_id FROM lexc)")
-                + ", " + self._final(g, best))
+                + ", " + self._final(g, best, scoped))
+
+
+class ProjectView:
+    """A Store bound to one project for every NAME-keyed call (3.2: names are unique per
+    project). The indexer of a project's directory, and the date / drift / migration code
+    it drives, see only that project's notes and history through it; any other attribute
+    is the store's own."""
+
+    def __init__(self, store: "Store", project: str):
+        if not _scope.valid_project(project):
+            raise StoreError(f"invalid project name: {project!r}")
+        self._store = store
+        self.project = project
+
+    def __getattr__(self, name):
+        return getattr(self._store, name)
+
+    def get_note(self, name):
+        return self._store.get_note(name, self.project)
+
+    def delete_note(self, name, generation=None):
+        return self._store.delete_note(name, generation, project=self.project)
+
+    def get_chunks(self, name, generation=None):
+        return self._store.get_chunks(name, generation, project=self.project)
+
+    def note_names(self, generation=None, *, project=None):
+        return self._store.note_names(generation, project=self.project)
+
+    def note_seen(self, name):
+        return self._store.note_seen(name, self.project)
+
+    def record_seen(self, rec):
+        return self._store.record_seen(rec, self.project)
+
+    def find_seen(self, content_hashes):
+        return self._store.find_seen(content_hashes, self.project)
+
+    def note_versions(self, name, limit=20):
+        return self._store.note_versions(name, limit, self.project)
+
+    def set_links(self, src, dsts):
+        return self._store.set_links(src, dsts, self.project)
+
+    def links(self, name):
+        return self._store.links(name, self.project)
+
+    def seen_count(self):
+        return self._store.seen_count(self.project)

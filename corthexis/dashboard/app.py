@@ -847,7 +847,13 @@ async def api_recall_hook(request: Request, payload: dict = Body(...)):
     if not enabled():
         return J({})
     try:
-        out = await asyncio.to_thread(hook_output, payload, recaller())
+        # the hook's scope (2.1): the service's CORTHEXIS_RECALL_PROJECTS, or the one the
+        # client sends (a cockpit that knows the session's project); never wider than the
+        # service's own
+        scope = service.scope()
+        if payload.get("projects") is not None:
+            scope = service.narrow(service.scope(payload["projects"]), scope)
+        out = await asyncio.to_thread(hook_output, payload, recaller(), projects=scope)
     except Exception as e:  # noqa: BLE001 — a hook never breaks a turn
         log.warning("recall hook failed: %s", e)
         out = {}

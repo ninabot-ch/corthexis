@@ -1,5 +1,56 @@
 # Changelog
 
+## 2.1.0 — 2026-10-08 — « Projects and levels »
+
+The engine of SOKKAN 3.2–3.4 (multi-project, classification), usable alone. A standalone
+memory does not have to know about any of it: one project, every note at the default level,
+every call as in 2.0.
+
+### Projects
+- Every note belongs to **one project** (`notes.project`, default `default`); names are
+  unique **per project**, so are links and the version history. One notes folder = one
+  project (`CORTHEXIS_MEMORY_PROJECT` for the indexer of that folder).
+- A **scope** is the set of projects a caller may read (`corthexis.scope`): `None` = no
+  scope (everything, as before); a tuple of projects = only their notes; an empty scope =
+  nothing. Fail-closed: a note without a project counts as `default`, an invalid project
+  name is dropped and never widens the scope.
+- The scope is applied **at every stage** of a search (dense, lexical, final guard) and by
+  the recall (ranking and quoted names alike: a note of another project "does not exist",
+  even quoted by its full name). A shared project `shared` resolves after the caller's own.
+- Review: `PgSource(store, project=…)` reads one project — near duplicates and renames
+  never pair notes of two projects.
+
+### Levels
+- Five levels on a note, stored as a rank: `public` (0) < `team` (1) < `project` (2,
+  the default) < `confidential` (3) < `restricted` (4). Frontmatter `classification:`
+  takes the id, the rank or your own label (`CORTHEXIS_CLASSIFICATION_LABELS`, five
+  labels); a value that is set but not understood is `restricted`, never `public`.
+- A scope entry may carry a **clearance**: `radio@3` = the notes of `radio` up to
+  `confidential`; a bare `radio` reads up to the default level, so an entry that lost
+  its clearance on the way can only see less. Two entries for one project keep the lower.
+- An index upsert **never lowers** a level (an edit of the file cannot declassify a
+  note); `Store.set_level` does, with a floor per note (`note_level_floor`) that a later
+  write cannot go under. `Store.session_level` = the highest level a session obtained.
+- **Audited recall**: every injection and every scoped read lands in `note_access` (who,
+  via which path, which note, at which level, for which query); `Store.access_log` reads
+  it. The MCP `memory_get` logs its reads when the server runs with a scope.
+
+### Service, MCP, hook
+- `CORTHEXIS_RECALL_PROJECTS=radio,shared@1` scopes the recall hook, the MCP tools and the
+  CLI of that process; `CORTHEXIS_RECALL_REQUIRE_SCOPE=1` makes the hook recall nothing
+  without one (what SOKKAN sets). Results carry `project` and `level`.
+- `corthexis.service.search / get / links` take `projects=`; `service.get_record` gives the
+  record a caller may read.
+
+### Migrations
+- `0011_note_project` (project column, existing notes → `default`), `0012_project_names`
+  (unique per project; links, history and recall log carry the project), `0013_classification`
+  (level, floor, `recall_log.level`, `note_access`). Applied by `Store.migrate()` on first
+  open, in place, nothing moved — tested on a frozen 2.0.0 database
+  (`tests/fixtures/schema_2_0_0.sql`).
+- Compatibility: `Store.get_note(name)` reads the default project; `resolve_note(name,
+  scope)` is the scoped lookup. `IndexStore.note_names(generation, project=…)`.
+
 ## 2.0.0 — 2026-10-05
 
 CortHeXis becomes a product of its own: the memory engine of SOKKAN 3.0, usable alone.

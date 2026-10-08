@@ -28,6 +28,7 @@ Link related notes with [[their-name]].
 | `metadata.type` | yes | `user` · `feedback` · `project` · `reference` |
 | `metadata.modified` | recommended | `YYYY-MM-DD`, the real last-updated date. See [[dates-live-in-the-frontmatter]]. |
 | `priority` | no | `high`: a slight boost in search (opt-in, `CORTHEXIS_PRIORITY_BOOST`). |
+| `classification` | no | `public` · `team` · `project` (default) · `confidential` · `restricted`, the rank 0-4, or your own label (`CORTHEXIS_CLASSIFICATION_LABELS`). An unknown value counts as `restricted`. Only read by callers whose scope clears that level — see [Projects and levels](README.md#projects-and-levels). |
 
 ## File name
 

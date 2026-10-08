@@ -9,6 +9,12 @@ of two different models.
 Reranking (``embed.rerank_policy()``): ``interactive`` (GPU profile) → top 10 of every
 search; ``async`` (standard profile) → only for a deep search asked explicitly; ``off``
 (light profile) → never. ``CORTHEXIS_SEARCH_RERANK=1|0`` forces it on or off.
+
+Projects and levels (2.1): the notes of a memory may be split into projects, each note
+at one of five levels (``corthexis.scope``, ``corthexis.levels``). ``CORTHEXIS_RECALL_PROJECTS``
+(``radio,shared@1``…) is the scope of this process: what the MCP tools, the CLI and the
+hook endpoint may read. Unset = no scope: every note, as in 2.0 (a standalone memory is one
+project, ``default``, every note at the default level).
 """
 from __future__ import annotations
 
@@ -17,6 +23,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
+from . import scope as _scope
 from .config import env
 
 _lock = threading.Lock()
@@ -32,6 +39,26 @@ def memory_dir() -> Path:
 def data_dir() -> Path:
     """Where the service keeps its own state (repair proposals, backups)."""
     return Path(env("DATA_DIR") or "~/.local/share/corthexis").expanduser()
+
+
+def scope(projects=None) -> tuple[str, ...] | None:
+    """The project scope of a call: ``projects`` when given, else the process's
+    ``CORTHEXIS_RECALL_PROJECTS``; ``None`` = no scope (everything is readable)."""
+    if projects is not None:
+        return _scope.normalize(projects)
+    return _scope.from_env(env("RECALL_PROJECTS"))
+
+
+def narrow(scope, within):
+    """``scope`` limited to ``within``: only its projects, never above its clearances
+    (a client-sent scope can be narrower than the service's, never wider)."""
+    if within is None:
+        return scope
+    if scope is None:
+        return within
+    allowed, want = _scope.caps(within), _scope.caps(scope)
+    return tuple(sorted(_scope.entry(p, min(c, allowed[p])) for p, c in want.items()
+                        if p in allowed))
 
 
 def get_store():
@@ -137,15 +164,21 @@ def _reranker(deep: bool = False) -> Callable | None:
     return None
 
 
-def search(query: str, top_k: int = 8, *, deep: bool = False) -> list[dict]:
+def search(query: str, top_k: int = 8, *, deep: bool = False,
+           projects=None) -> list[dict]:
     """Ranked notes for ``query`` (``memory_search``). Never raises: an error is a row
-    ``{"error": …}``, a missing model degrades to keywords with ``degraded`` set."""
+    ``{"error": …}``, a missing model degrades to keywords with ``degraded`` set.
+    ``projects`` = the caller's scope (see ``scope``); an empty scope finds nothing."""
     from .search import tokens
     from .store import DimensionMismatch, StoreError
 
     query = (query or "").strip()
     if not query:
         return [{"error": "empty query"}]
+    sc = scope(projects)
+    if sc == ():
+        return [{"info": "No note is readable in this scope.", "empty": True}]
+    scoped = {"projects": sc} if sc is not None else {}
     try:
         st = get_store()
     except Exception as e:  # noqa: BLE001 — database down
@@ -160,14 +193,16 @@ def search(query: str, top_k: int = 8, *, deep: bool = False) -> list[dict]:
         return [{"error": f"{degraded}; the query has no usable keyword"}]
     top_k = max(1, min(int(top_k or 8), 50))
     try:
-        hits = st.search(q, query, top_k, rerank=_reranker(deep) if q is not None else None)
+        hits = st.search(q, query, top_k, rerank=_reranker(deep) if q is not None else None,
+                         **scoped)
     except DimensionMismatch as e:
         degraded = f"query embedding does not match the index ({e}) — keyword-only ranking"
         if not tokens(query):
             return [{"error": degraded}]
-        hits = st.search(None, query, top_k)
+        hits = st.search(None, query, top_k, **scoped)
     except StoreError as e:
         return [{"error": str(e)}]
+    hits = _scope.filter_hits(hits, sc)   # the rule holds even for a store that ignores it
     if not hits:
         return [{"info": "No memory yet: the index is empty or has no active generation.",
                  "empty": True}]
@@ -194,26 +229,48 @@ def age_header(name: str, modified, source) -> str:
     return head + "]"
 
 
-def get(note_name: str) -> str | None:
-    """Full body of a note prefixed with its age and date provenance (``memory_get``);
-    None = no such note. Accepts the note name or its file name."""
+def get_record(note_name: str, *, projects=None):
+    """The ``NoteRecord`` a caller with this scope may read under ``note_name`` (name or
+    file name): its own project first, then ``shared``; None = no such note *for this
+    caller* (a note of another project, or above the clearance, does not exist)."""
     st = get_store()
     name = (note_name or "").strip().removesuffix(".md")
     if not name:
         return None
-    if st.get_note(name) is None:
-        name = st.find_note_by_path(name) or ""
-    note = st.get_note(name) if name else None
+    sc = scope(projects)
+    if sc == ():
+        return None
+    note = st.resolve_note(name, sc)
+    if note is None:
+        by_path = st.find_note_by_path(name, sc)
+        note = st.resolve_note(by_path, sc) if by_path else None
+    if note is not None and not _scope.visible(note, sc):
+        return None
+    return note
+
+
+def get(note_name: str, *, projects=None, via: str | None = None,
+        actor: str | None = None, session_id: str | None = None) -> str | None:
+    """Full body of a note prefixed with its age and date provenance (``memory_get``);
+    None = no such note. Accepts the note name or its file name. With a scope and ``via``
+    set, the read is written to the access log (the audited recall)."""
+    note = get_record(note_name, projects=projects)
     if note is None:
         return None
+    if via and scope(projects) is not None and hasattr(get_store(), "log_access"):
+        try:
+            get_store().log_access(via, [note], actor=actor, session_id=session_id)
+        except Exception:  # noqa: BLE001 — the audit never blocks a read
+            pass
     return age_header(note.name, note.modified, note.modified_source) + "\n\n" + (note.body or "")
 
 
-def links(note_name: str) -> dict:
+def links(note_name: str, *, projects=None) -> dict:
     st = get_store()
-    if st.get_note(note_name) is None:
+    note = get_record(note_name, projects=projects)
+    if note is None:
         return {"error": f"note not found: {note_name}"}
-    out = st.links(note_name)
+    out = st.links(note.name, _scope.project_of(note))
     out["links"] = [{"name": r["name"], "description": r["description"] or "",
                      "exists": bool(r["exists"])} for r in out["links"]]
     out["backlinks"] = [{"name": r["name"], "description": r["description"] or ""}

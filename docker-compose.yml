@@ -40,7 +40,7 @@ services:
 
   corthexis:
     build: .
-    image: ${CORTHEXIS_IMAGE:-corthexis:2.0.0}
+    image: ${CORTHEXIS_IMAGE:-corthexis:2.1.0}
     restart: unless-stopped
     user: "${CORTHEXIS_UID:-1000}:${CORTHEXIS_GID:-1000}"
     environment:

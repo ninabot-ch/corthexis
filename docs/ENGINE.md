@@ -178,3 +178,7 @@ point of the choice; `fallback_key()` refuses any model labelled `gemma`.
 | `ACCEPT_GEMMA_TERMS` | — | unattended licence answer |
 | `EMBED_FALLBACK` | `multilingual-e5-base-q8` | non-Gemma fallback |
 | `MODEL_BASE_URL` | `https://huggingface.co` | mirror for the downloads |
+| `MEMORY_PROJECT` | `default` | the project of the notes folder this indexer runs on (2.1) |
+| `RECALL_PROJECTS` | — (no scope) | `radio,shared@1`: what this process may read — projects, each up to a level (2.1) |
+| `RECALL_REQUIRE_SCOPE` | `0` | `1`: the recall hook recalls nothing without `RECALL_PROJECTS` |
+| `CLASSIFICATION_LABELS` | `Public,Team,Project,Confidential,Restricted` | your own five labels, in rank order |

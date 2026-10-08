@@ -78,6 +78,24 @@ order. Notes already given in a session are not given again.
 **Without HTTP**: `pip install .` then `claude mcp add -s user corthexis -- corthexis mcp`
 with `CORTHEXIS_DATABASE_URL` and `CORTHEXIS_EMBED_URLS` in its environment (stdio).
 
+## Projects and levels
+
+A memory is one project and every note is at the default level until you say otherwise;
+nothing above changes a standalone install. When several teams share one memory:
+
+- **one notes folder = one project** (`CORTHEXIS_MEMORY_PROJECT=radio` on that folder's
+  indexer); names, links and history are per project, and a project named `shared` is
+  readable next to one's own;
+- a note's frontmatter may carry `classification: confidential` — five levels, `public` <
+  `team` < `project` (default) < `confidential` < `restricted`; an unknown value is
+  `restricted`, an edit of the file never lowers a level;
+- `CORTHEXIS_RECALL_PROJECTS=radio,shared@1` gives a process (the recall hook, the MCP
+  server, the CLI) its scope: the notes of `radio` up to `project`, of `shared` up to
+  `team`. The scope holds at every stage of the search and for a note quoted by name;
+  every scoped read is in the access log (`note_access`).
+
+[CHANGELOG 2.1.0](CHANGELOG.md) has the whole of it; [SCHEMA.md](SCHEMA.md) the field.
+
 ## The dashboard
 
 | | |
@@ -177,7 +195,7 @@ checked before the switch, the old index left untouched for a rollback. See
 Everything shown on [corthexis.com](https://corthexis.com) and on the
 [demo](https://demo.corthexis.com) runs from this repository.
 
-| | This repository | SOKKAN 3.0 |
+| | This repository | SOKKAN 3.x |
 |---|---|---|
 | Engine: store, hybrid search, reranker, dates and provenance | ✓ | ✓ (same code) |
 | Recall at every turn and in sub-agents (Claude Code hook) | ✓ `corthexis hook install` | ✓ in every session it starts |
@@ -186,11 +204,13 @@ Everything shown on [corthexis.com](https://corthexis.com) and on the
 | Dashboard: graph, recall, health, bench | ✓ `corthexis serve` | ✓ CortHeXis tab |
 | Recall bench, gated profile/model switch | ✓ `corthexis eval` | ✓ + Magnitude memory card |
 | Migration from 1.x / SOKKAN 2.x | ✓ `corthexis migrate` | ✓ automatic on upgrade |
+| Projects (one folder = one project, scoped recall) and five classification levels with audited recall | ✓ `CORTHEXIS_RECALL_PROJECTS`, `classification:` | ✓ projects, teams and clearances from SSO groups |
 | Agent cockpit: parallel sessions, approvals, board, terminals | — | ✓ |
 
 **CortHeXis alone** if you want a memory for the agents you already run (Claude Code or
 anything that speaks MCP). **[SOKKAN](https://sokkan.ch)** if you also want the cockpit that
-runs those agents: its memory tab *is* CortHeXis, installed and wired for you. The
+runs those agents: its memory tab *is* CortHeXis, installed and wired for you, and its
+projects, teams and clearances drive the scope of every recall. The
 `SOKKAN_*` variable names are read as a fallback of the `CORTHEXIS_*` ones.
 
 What we run ourselves that is not in this repository: our notes (see
