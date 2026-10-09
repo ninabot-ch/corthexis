@@ -685,16 +685,23 @@ def api_note(request: Request, name: str):
 
 @app.get("/api/search")
 def api_search(request: Request, q: str = Query(min_length=2, max_length=500), k: int = 12,
-               deep: bool = False):
+               deep: bool = False, projects: str | None = Query(None, max_length=500)):
+    """``projects=a,b`` narrows the search to those projects (an application with several
+    corpora in one instance, e.g. one per character); never wider than the service's own
+    scope (``CORTHEXIS_RECALL_PROJECTS``)."""
     require_read(request)
-    rows = service.search(q, k, deep=deep)
+    from .. import scope as _scope
+    asked = _scope.from_env(projects) if projects is not None else None
+    if projects is not None and asked is None:
+        asked = ()
+    rows = service.search(q, k, deep=deep, projects=service.narrow(asked, service.scope()))
     err = next((r["error"] for r in rows if "error" in r), None)
     hits = [r for r in rows if "note_name" in r]
     degraded = next((r.get("degraded") for r in hits if r.get("degraded")), None)
     if err and not hits:
         degraded = err
     return J({"query": q, "degraded": degraded, "results": [
-        {"note": r["note_name"], "score": r["score"], "cosine": r.get("cosine"),
+        {"note": r["note_name"], "project": r.get("project"), "score": r["score"], "cosine": r.get("cosine"),
          "lexical": r.get("lexical"), "rerank": r.get("rerank"), "snippet": r.get("snippet"),
          "age_days": r.get("age_days"), "date_source": r.get("date_source")} for r in hits]})
 

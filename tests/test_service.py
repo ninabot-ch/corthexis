@@ -247,6 +247,18 @@ def test_dashboard_auth_and_reads(client):
 
 
 @needs_pg
+def test_dashboard_search_narrows_to_projects(client):
+    """2.1.1: ``projects=`` on /api/search, one instance serving several corpora."""
+    c, _m, _mem = client
+    q = "/api/search?q=Kartonage Weiss cardboard"
+    every = c.get(q, headers=AUTH).json()["results"]
+    assert every and every[0]["project"] == "default"
+    assert c.get(q + "&projects=default", headers=AUTH).json()["results"][0]["note"] == every[0]["note"]
+    assert c.get(q + "&projects=elsewhere", headers=AUTH).json()["results"] == []
+    assert c.get(q + "&projects=", headers=AUTH).json()["results"] == []
+
+
+@needs_pg
 def test_dashboard_repair_needs_approval(client):
     c, _m, mem = client
     before = (mem / "dangling.md").read_text()
