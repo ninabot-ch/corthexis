@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.1 — 2026-10-09
+
+- `/api/search` takes `projects=a,b`: one instance can serve several corpora (one per
+  character of a game, one per product…) and the caller asks for the ones it needs. The
+  scope is narrowed by the service's own (`CORTHEXIS_RECALL_PROJECTS`), never widened; an
+  empty or unknown list finds nothing. Each result now carries its `project`.
+
 ## 2.1.0 — 2026-10-08 — « Projects and levels »
 
 The engine of SOKKAN 3.2–3.4 (multi-project, classification), usable alone. A standalone

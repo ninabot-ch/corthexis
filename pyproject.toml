@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "corthexis"
-version = "2.1.0"
+version = "2.1.1"
 description = "A memory for AI agents that reads itself back: semantic recall over MCP, per-turn recall hook, automatic review, repairs with approval, recall bench."
 readme = "README.md"
 requires-python = ">=3.10"

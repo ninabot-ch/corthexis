@@ -4,4 +4,4 @@ The engine (store, embed, search, indexer, recall, review, repairs, bench) and t
 service around it (MCP server, CLI, recall hook, dashboard). SOKKAN 3.0 embeds it.
 """
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
