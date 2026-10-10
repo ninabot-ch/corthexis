@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.2 — 2026-10-10
+
+- **The local fastembed model is loaded once per process.** A `LegacyEmbedder` built anew at
+  every store re-check reloaded the model (4-13 s on a small host); a recall hook with a 5 s
+  budget then timed out and the prompt waited. The model is now cached per (model, cache
+  directory), shared by every embedder of the process. Same fix as SOKKAN 3.4.4.
+
 ## 2.1.1 — 2026-10-09
 
 - `/api/search` takes `projects=a,b`: one instance can serve several corpora (one per
