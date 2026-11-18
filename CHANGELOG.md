@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.3 — 2026-11-18
+
+- **A note written after indexing began is dated, even while the history is still empty.**
+  On a new host with an empty memory, every pass before the first note counted as the
+  bootstrap of an existing corpus, so the first notes ever written were dated « unknown »
+  (no date, no sort, no « Updated … »). The indexer now knows since when its store has been
+  indexing (its oldest generation); a note whose file is newer than that is born now. Same
+  fix as SOKKAN 3.6.7.
+
 ## 2.1.2 — 2026-10-10
 
 - **The local fastembed model is loaded once per process.** A `LegacyEmbedder` built anew at
